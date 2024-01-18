@@ -8,7 +8,7 @@ pygame.display.set_caption("Another Tempest Clone") #Sets Name For The Game
 clock = pygame.time.Clock() #Object To Control The Framerate
 
 surface = pygame.Surface((100, 200))
-surface.fill('Red')
+surface.fill('Green')
 
 while True:
     for event in pygame.event.get(): #Checks for Events From Keyboard Or Mouse
