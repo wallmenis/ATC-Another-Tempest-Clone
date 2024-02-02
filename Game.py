@@ -15,7 +15,7 @@ while True:
         if event.type == pygame.QUIT:
             pygame.quit()
             exit()
-
+    # test
     # draw all our elements
     # update everything
     
