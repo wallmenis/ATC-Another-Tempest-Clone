@@ -17,6 +17,7 @@ while True:
             exit()
     # test
     # another test
+    # gia
     # draw all our elements
     # update everything
     
