@@ -5,14 +5,16 @@ import re
 import numpy as np
 
 # Default parameters
+global resolution, dpi
+dpi = 96
 resolution = (800, 600)
 
 
 class Player:
     def __init__(self, c):
-        self.position = 0   # The game is effectively cyclical 2D as far as the position.
-        self.cycle = c      # It is cyclical but some levels arent so we will set negative values for noncyclical levels
-        self.pointList = [[2, 0, 1], [2, 0, 0], [-2, 0, -1]]
+        self.position = 0  # The game is effectively cyclical 2D as far as the position.
+        self.cycle = c  # It is cyclical but some levels arent so we will set negative values for noncyclical levels
+        self.pointList = np.array([[2, 0, 1], [2, 0, 0], [-2, 0, -1]])
         self.movablePoint = 0
 
     def moveLeft(self):
@@ -41,6 +43,15 @@ class Player:
                 position = cycle
         self.position = position
 
+    def __str__(self):
+        iscyc = ""
+        tmpcyc = self.cycle
+        if self.cycle > 0:
+            iscyc = "not "
+        else:
+            tmpcyc = tmpcyc * (-1)
+        return f"Player in position {self.position} in level with {tmpcyc} positions that is {iscyc}cyclical. Points making the shape: {self.pointList}"
+
 
 class Level:
     def __init__(self, lvlnum, enLst, svgfile):
@@ -59,13 +70,13 @@ class Level:
         print()
         path = "./g/path"
         path = re.sub("/", "/{http://www.w3.org/2000/svg}", path)
-        levelGeom = levelRoot.find(path).attrib['d'].split(" ")
+        levelGeom = levelRoot.find(path).attrib["d"].split(" ")
         levelGeom.pop(0)
-        levelGeom.pop(len(levelGeom)-1)
+        levelGeom.pop(len(levelGeom) - 1)
         tmpLevelGeom = []
         for i in levelGeom:
             tmpLevelGeom.append([float(i.split(",")[0]), float(i.split(",")[1])])
-        levelGeom = tmpLevelGeom.copy()
+        levelGeom = milimetersToPixels(np.array(tmpLevelGeom.copy()))
         return levelGeom
 
     def importCyclicalFromSvg(self, svgfile):
@@ -78,19 +89,54 @@ class Level:
             return True
         return False
 
+    def generateScaledPolygonVerts(self, scale):
+        tmpScaled = []
+        for i in self.polygonPoints:
+            tmpScaled.append(np.array(i) - np.array(resolution)/2)
+
+        scaled = self.polygonPoints*scale
+        return scaled
+
     def getPositionsFromPolygon(self, polygonPoints):
         positions = []
-        for i in range(len(polygonPoints)-1):
-            positions.append((polygonPoints[i] + polygonPoints[i+1]) / 2.0)
+        for i in range(len(polygonPoints) - 1):
+            positions.append((polygonPoints[i] + polygonPoints[i + 1]) / 2.0)
         if bool(self.cyclical):
-            positions.append((polygonPoints[0] + polygonPoints[len(polygonPoints)-1])/2.0)
+            positions.append(
+                (polygonPoints[0] + polygonPoints[len(polygonPoints) - 1]) / 2.0
+            )
         return positions
 
+    def getCyclicalForPlayer(self):
+        if not self.cyclical:
+            return (-1) * len(self.getPolygonPoints())
+        return len(self.getPolygonPoints())
+
+    def localToLevelSpace(self, positionInLevel, pointArray):
+        print(self.positions[positionInLevel])
+        print(pointArray)
+        endPosition = []
+        for i in pointArray:
+            print(i)
+            endPosition.append(np.array(i) + self.positions[positionInLevel])
+        endPosition = np.array(endPosition)
+        return endPosition
+
+    def __str__(self):
+        iscyc = ""
+        if not self.cyclical:
+            iscyc = "not "
+        return f"Level with number {self.levelNumber} and {self.positions} positions that is {iscyc}cyclical. Points making the shape: {self.polygonPoints}, Enemy list: {self.enemyList}"
 
 
-def DrawGame(player, level):
-    option = False
-    return option
+def milimetersToPixels(pointArray):
+    return pointArray*dpi*0.03937008
+
+
+def DrawGame(player, level, screen):
+    # pygame.draw.polygon(screen, ())
+    pygame.draw.polygon(screen, (255, 255, 255), level.getPolygonPoints(), 1)
+    pygame.draw.polygon(screen, (0, 255, 0), level.localToLevelSpace(player.position, player.pointList))
 
 
 def DrawMainMenu():
@@ -104,26 +150,31 @@ def DrawPauseMenu():
 
 
 LevelList = []
-# LevelList.append(Level(1,[]))
+LevelList.append(Level(1, [], "testsvg.svg"))
 
-# BaseLevel =
-BasePlayer = Player()
+BaseLevel = LevelList[0]
+BasePlayer = Player(BaseLevel.getCyclicalForPlayer())
+
+print(BaseLevel)
+print(BasePlayer)
 
 pygame.init()
-screen = pygame.display.set_mode(resolution)    # Set Resolution    h,w
-pygame.display.set_caption("Another Tempest Clone")     # Sets Name For The Game
-clock = pygame.time.Clock()             # Object To Control The Framerate
+screen = pygame.display.set_mode(resolution)  # Set Resolution    h,w
+pygame.display.set_caption("Another Tempest Clone")  # Sets Name For The Game
+clock = pygame.time.Clock()  # Object To Control The Framerate
 
-# base_surface = pygame.Surface(resolution)
+BaseSurface = pygame.Surface(resolution)
 screen.fill("black")
 
 while True:
-    for event in pygame.event.get():    # Checks for Events From Keyboard Or Mouse
+    for event in pygame.event.get():  # Checks for Events From Keyboard Or Mouse
         if event.type == pygame.QUIT:
             pygame.quit()
             exit()
-    # DrawGame()
+    DrawGame(BasePlayer, BaseLevel, screen)
     DrawPauseMenu()
     DrawMainMenu()
+    # print("screen")
     pygame.display.update()
+    # pygame.display.flip()
     clock.tick(60)  # 60 Frames/Second
