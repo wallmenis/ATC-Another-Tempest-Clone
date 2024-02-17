@@ -1,8 +1,29 @@
-import pygame
+
 from sys import exit
 import xml.etree.ElementTree as ET
+import os
 import re
-import numpy as np
+import shutil
+try:
+    import pygame
+    # import svg.path
+    import numpy as np
+except:
+    if not os.path.isdir("gameEnv"):
+        os.system("python3 -m venv gameEnv")
+        os.system("gameEnv/bin/python -m pip install pygame svg.path numpy")
+        os.system("gameEnv/bin/python Game.py")
+        exit()
+    try:
+        import pygame
+        # import svg.path
+        import numpy as np
+    except:
+        shutil.rmtree("gameEnv")
+        os.system("python3 -m venv gameEnv")
+        os.system("gameEnv/bin/python -m pip install pygame svg.path numpy")
+        os.system("gameEnv/bin/python Game.py")
+        exit()
 
 # Default parameters
 global resolution, dpi
@@ -77,13 +98,14 @@ class Player:
 
 
 class Level:
-    def __init__(self, lvlnum, enLst, svgfile):
+    def __init__(self, lvlnum, enLst, svgfile, color):
         self.levelNumber = lvlnum
         self.enemyList = enLst
         self.polygonPoints = importPolygonFromSvg(svgfile)
         self.cyclical = self.importCyclicalFromSvg(svgfile)
         self.positions = self.getPositionsFromPolygon(self.polygonPoints)
         self.positionAngles = self.getPosAnglesFromPolygon(self.polygonPoints)
+        self.color = color
 
     def getPolygonPoints(self):
         return self.polygonPoints
@@ -119,14 +141,17 @@ class Level:
         # print(self.positions[positionInLevel])
         # print(pointArray)
         objectCenter = np.sum(pArray, axis=0)/pArray.shape[0]
-        pointArray = np.matmul(
-            [np.cos(self.positionAngles[positionInLevel]), -np.sin(self.positionAngles[positionInLevel]),]
-
-            )
+        sines = np.sin(self.positionAngles[positionInLevel])
+        cosines = np.cos(self.positionAngles[positionInLevel])
+        pointArray = []
+        for i in pArray:
+            tmp = np.array(i) - objectCenter
+            tmp = np.matmul([[cosines, -sines], [sines, cosines]], tmp)
+            pointArray.append(tmp)
         endPosition = []
         for i in pointArray:
             # print(i)
-            endPosition.append(np.array(i) + self.positions[positionInLevel] - objectCenter)
+            endPosition.append(np.array(i) + self.positions[positionInLevel])
         endPosition = np.array(endPosition)
         return endPosition
 
@@ -135,23 +160,33 @@ class Level:
         print("test")
         for i in range(len(polygonPoints) - 1):
             tmpangle = polygonPoints[i] - polygonPoints[i+1]
+            tmpangle = (-1)*tmpangle
+            print(f"slope {tmpangle}")
             if tmpangle[1] == 0:
                 tmpangle = 0
             elif tmpangle[0] == 0:
                 tmpangle = np.pi/2.0
             else:
-                tmpangle = tmpangle[1]/tmpangle[0]
+                tmpangle = np.arctan(tmpangle[1]/tmpangle[0])
+            tmp = (polygonPoints[i] + polygonPoints[i + 1]) / 2.0
+            if tmp[1] < resolution[1]/2.0:
+                tmpangle += np.pi
             angles.append(tmpangle)
         if self.cyclical is True:
-            print("is cyclical")
             tmpangle = polygonPoints[0] - polygonPoints[len(polygonPoints) - 1]
+            tmpangle = (-1)*tmpangle
+            print(f"slope {tmpangle}")
             if tmpangle[1] == 0:
                 tmpangle = 0
             elif tmpangle[0] == 0:
                 tmpangle = np.pi/2.0
             else:
-                tmpangle = tmpangle[1]/tmpangle[0]
+                tmpangle = np.arctan(tmpangle[1]/tmpangle[0])
+            if tmp[1] < resolution[1]/2.0:
+                tmpangle += np.pi
             angles.append(tmpangle)
+        angles = np.array(angles)
+        print(f"Angles {angles*360/np.pi}")
         return angles
 
     def __str__(self):
@@ -159,6 +194,14 @@ class Level:
         if not self.cyclical:
             iscyc = "not "
         return f"Level with number {self.levelNumber} and {self.positions} positions that is {iscyc}cyclical. Points making the shape: {self.polygonPoints}, Enemy list: {self.enemyList}"
+
+
+class Enemy(Player):
+    def __init__(self, c, svgfile, spawndepth, spawnpos):
+        self.position = spawnpos  # The game is effectively cyclical 2D as far as the position.
+        self.cycle = c  # It is cyclical but some levels arent so we will set negative values for noncyclical levels
+        self.pointList = importPolygonFromSvg(svgfile)
+        self.depth = spawndepth
 
 
 def scaleAgainstCenter(scale, polygonPoints, center):
@@ -181,11 +224,11 @@ def drawLinesForLevel(polygonPoints, scaledPolygonPoints, screen, color, width):
 def DrawGame(player, level, screen):
     # pygame.draw.polygon(screen, ())
     scaled = scaleAgainstCenter(0.1, level.polygonPoints, np.array([0, 0]))
-    pygame.draw.polygon(screen, (255, 255, 255), level.getPolygonPoints(), 1)
-    pygame.draw.polygon(screen, (255, 255, 255), scaled, 1)
+    pygame.draw.polygon(screen, level.color, level.getPolygonPoints(), 1)
+    pygame.draw.polygon(screen, level.color, scaled, 1)
     # print(level.localToLevelSpace(player.position, player.pointList))
     pygame.draw.polygon(screen, (0, 255, 0), level.localToLevelSpace(player.position, player.pointList), 1)
-    drawLinesForLevel(level.getPolygonPoints(), scaled, screen, (255, 255, 255), 1)
+    drawLinesForLevel(level.getPolygonPoints(), scaled, screen, level.color, 1)
 
 
 def DrawMainMenu():
@@ -199,10 +242,11 @@ def DrawPauseMenu():
 
 
 LevelList = []
-LevelList.append(Level(1, [], "testsvg.svg"))
+LevelList.append(Level(1, [], "Level1.svg", (0, 0, 255)))
 
 BaseLevel = LevelList[0]
 BasePlayer = Player(BaseLevel.getCyclicalForPlayer(), "Player.svg")
+# PletList
 
 print(BaseLevel)
 print(BasePlayer)
