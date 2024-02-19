@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="800"
+   height="600"
+   viewBox="0 0 211.66666 158.75"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.2 (dc2aedaf03, 2022-05-15)"
+   sodipodi:docname="Level4.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#505050"
+     bordercolor="#ffffff"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#505050"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="0.914906"
+     inkscape:cx="396.76207"
+     inkscape:cy="211.49714"
+     inkscape:window-width="1278"
+     inkscape:window-height="1368"
+     inkscape:window-x="-7"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs2" />
+  <g
+     inkscape:label="Στρώση 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       id="path184"
+       style="stroke-width:2.02671;stroke-linejoin:round"
+       transform="translate(40.037059,43.457149)"
+       d="m 26.027267,-26.605648 22.821514,2.788739 18.066922,-14.219179 17.690973,14.684278 22.886334,-2.194219 6.94367,21.9176631 20.43949,10.5273897 -6.00819,22.1923452 11.50326,19.906627 -17.05251,15.421113 -1.08518,22.965652 L 99.550794,91.138548 86.221715,109.87179 65.110311,100.76645 43.76922,109.31962 30.931896,90.24603 8.3544387,85.903543 7.8669526,62.917441 -8.7786875,47.058014 3.2384386,27.457319 -2.1905116,5.1162078 18.515874,-4.8759975 Z" />
+  </g>
+</svg>

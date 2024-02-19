@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="800"
+   height="600"
+   viewBox="0 0 211.66666 158.75"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.2 (dc2aedaf03, 2022-05-15)"
+   sodipodi:docname="Enemy_Medium.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#505050"
+     bordercolor="#ffffff"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#505050"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="1.2938725"
+     inkscape:cx="268.18717"
+     inkscape:cy="167.71359"
+     inkscape:window-width="2560"
+     inkscape:window-height="1377"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs2" />
+  <g
+     inkscape:label="Στρώση 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       id="rect184"
+       style="stroke-width:0.719137;stroke-linejoin:round"
+       d="M 76.350895 30.509766 L 76.350895 33.929712 L 76.363298 33.929712 L 76.363298 35.87688 L 73.961894 35.87688 L 73.961894 36.876819 L 76.363298 36.876819 L 76.363298 37.718628 L 73.961894 37.718628 L 73.961894 38.981083 L 76.363298 38.981083 L 76.363298 40.37583 L 70.634965 40.37583 L 70.634965 41.507027 L 76.363298 41.507027 L 76.363298 43.085742 L 77.413879 43.085742 L 77.413879 41.507027 L 78.502185 41.507027 L 78.502185 43.085742 L 79.552767 43.085742 L 79.552767 41.507027 L 79.565169 41.507027 L 85.293502 41.507027 L 85.293502 40.37583 L 79.565169 40.37583 L 79.565169 38.981083 L 82.266813 38.981083 L 82.266813 37.718628 L 79.565169 37.718628 L 79.565169 36.876819 L 82.266813 36.876819 L 82.266813 35.87688 L 79.565169 35.87688 L 79.565169 33.929712 L 79.565169 30.509766 L 79.12747 30.509766 L 79.12747 33.929712 L 78.502185 33.929712 L 78.502185 32.377869 L 77.413879 32.377869 L 77.413879 33.929712 L 76.788595 33.929712 L 76.788595 30.509766 L 76.350895 30.509766 z " />
+  </g>
+</svg>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="800"
+   height="600"
+   viewBox="0 0 211.66667 158.75"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.2 (dc2aedaf03, 2022-05-15)"
+   sodipodi:docname="Enemy_High.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#505050"
+     bordercolor="#eeeeee"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#505050"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="1.2938725"
+     inkscape:cx="377.16236"
+     inkscape:cy="297.55637"
+     inkscape:window-width="2560"
+     inkscape:window-height="1377"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs2" />
+  <g
+     inkscape:label="Στρώση 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       id="rect184"
+       style="stroke-width:0.399917;stroke-linejoin:round"
+       d="m 39.957197,45.396712 v 2.435271 h -1.411764 v -1.522132 h -0.609986 v 1.522132 h -0.850361 v 0.91349 h 2.872111 v 1.116019 h -2.855916 v 0.91349 h 2.855916 v 1.065387 h -2.855916 v 0.91349 h 1.861077 v 3.450025 h -2.438675 v -2.942647 h -0.73827 v 2.942647 0.964123 h 3.433831 v 1.725013 h 3.401442 v -1.725013 h 3.594187 v -0.964123 -2.942647 h -0.73827 v 2.942647 h -2.791774 v -3.450025 h 1.941413 v -0.91349 h -2.920059 v 0.91349 h 0.433119 v 3.450025 h -0.449313 v -7.458411 h 2.920376 v -0.91349 h -1.155513 v -1.522132 h -0.609668 v 1.522132 h -1.155195 v -2.435271 z m 1.748986,4.46478 v 0.91349 h 2.920059 v -0.91349 z m -2.198299,2.892367 h 0.449313 v 3.450025 h -0.449313 z" />
+  </g>
+</svg>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="800"
+   height="600"
+   viewBox="0 0 211.66666 158.75"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.2 (dc2aedaf03, 2022-05-15)"
+   sodipodi:docname="Level6.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#505050"
+     bordercolor="#ffffff"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#505050"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="0.914906"
+     inkscape:cx="396.76207"
+     inkscape:cy="124.60296"
+     inkscape:window-width="2560"
+     inkscape:window-height="1377"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs2" />
+  <g
+     inkscape:label="Στρώση 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       id="path186"
+       style="stroke-width:2.02671;stroke-linejoin:round"
+       inkscape:transform-center-x="0.97528411"
+       inkscape:transform-center-y="-0.038901731"
+       transform="matrix(0.53228527,0,0,0.47024539,79.641693,67.457879)"
+       d="M 139.39046,-1.2607427e-6 187.66477,82.771792 141.65533,45.179132 145.93413,140.9041 122.66498,86.235805 81.968058,172.98452 86.76987,113.76443 10.420401,171.6638 42.193143,121.45852 -52.318134,137.2445 -0.85321397,107.55547 -91.874904,77.611681 -32.507799,75.24029 -99.187929,6.4264918 l 53.669001,25.4895062 -27.062957,-91.919394 35.675976,47.511065 18.754014,-93.967359 9.5100154,58.648407 60.2746666,-74.488547 -18.834576,56.350117 87.987119,-37.945297 -42.864393,41.142686 95.542783,7.290762 -57.07449,16.509961 81.21074,50.856595 z" />
+  </g>
+</svg>
