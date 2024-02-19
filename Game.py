@@ -1,4 +1,3 @@
-
 from sys import exit
 import xml.etree.ElementTree as ET
 import os
@@ -6,7 +5,7 @@ import re
 import shutil
 try:
     import pygame
-    # import svg.path
+    import svg.path
     import numpy as np
 except:
     if not os.path.isdir("gameEnv"):
@@ -16,7 +15,7 @@ except:
         exit()
     try:
         import pygame
-        # import svg.path
+        import svg.path
         import numpy as np
     except:
         shutil.rmtree("gameEnv")
@@ -28,8 +27,30 @@ except:
 # Default parameters
 global resolution, dpi
 dpi = 96
-resolution = (800, 600)
+resolution = np.array((800, 600))
 
+
+# def importPolygonFromSvg(svgfile):
+#     levelTree = ET.parse(svgfile)
+#     levelRoot = levelTree.getroot()
+#     print()
+#     path = "./g/path"
+#     path = re.sub("/", "/{http://www.w3.org/2000/svg}", path)
+#     levelGeom = levelRoot.find(path).attrib["d"]
+#     # levelGeom.pop(len(levelGeom) - 1)
+#     levelGeom = re.sub("[zlLZ]", "", levelGeom)
+#     levelGeom = " ".join(levelGeom.split())
+#     print(levelGeom)
+#     levelGeom = levelGeom.split(" ")
+#     symbol = levelGeom.pop(0)
+#     print(levelGeom)
+#     tmpLevelGeom = []
+#     for i in levelGeom:
+#         tmpLevelGeom.append([float(i.split(",")[0]), float(i.split(",")[1])])
+#     levelGeom = milimetersToPixels(np.array(tmpLevelGeom.copy()))
+#     if symbol == "m":
+#         levelGeom = np.cumsum(levelGeom, axis=0)
+#     return levelGeom
 
 def importPolygonFromSvg(svgfile):
     levelTree = ET.parse(svgfile)
@@ -37,20 +58,14 @@ def importPolygonFromSvg(svgfile):
     print()
     path = "./g/path"
     path = re.sub("/", "/{http://www.w3.org/2000/svg}", path)
-    levelGeom = levelRoot.find(path).attrib["d"]
-    # levelGeom.pop(len(levelGeom) - 1)
-    levelGeom = re.sub("[zlLZ]", "", levelGeom)
-    levelGeom = " ".join(levelGeom.split())
-    print(levelGeom)
-    levelGeom = levelGeom.split(" ")
-    symbol = levelGeom.pop(0)
-    print(levelGeom)
-    tmpLevelGeom = []
-    for i in levelGeom:
-        tmpLevelGeom.append([float(i.split(",")[0]), float(i.split(",")[1])])
-    levelGeom = milimetersToPixels(np.array(tmpLevelGeom.copy()))
-    if symbol == "m":
-        levelGeom = np.cumsum(levelGeom, axis=0)
+    levelPath = levelRoot.find(path).attrib["d"]
+    pp = svg.path.parse_path(levelPath)
+    points = []
+    pp.pop(0)
+    for i in pp:
+        points.append([i.point(0).real, i.point(0).imag])
+    points = np.array(points)
+    levelGeom = milimetersToPixels(points)
     return levelGeom
 
 
@@ -107,9 +122,6 @@ class Level:
         self.positionAngles = self.getPosAnglesFromPolygon(self.polygonPoints)
         self.color = color
 
-    def getPolygonPoints(self):
-        return self.polygonPoints
-
     def importCyclicalFromSvg(self, svgfile):
         levelTree = ET.parse(svgfile)
         levelRoot = levelTree.getroot()
@@ -157,7 +169,8 @@ class Level:
 
     def getPosAnglesFromPolygon(self, polygonPoints):
         angles = []
-        print("test")
+        center = np.sum(polygonPoints, axis=0)/polygonPoints.shape[0]
+        # print("test")
         for i in range(len(polygonPoints) - 1):
             tmpangle = polygonPoints[i] - polygonPoints[i+1]
             tmpangle = (-1)*tmpangle
@@ -182,7 +195,7 @@ class Level:
                 tmpangle = np.pi/2.0
             else:
                 tmpangle = np.arctan(tmpangle[1]/tmpangle[0])
-            if tmp[1] < resolution[1]/2.0:
+            if tmp[1] < center[1]: # or tmp[0] < center[0]:
                 tmpangle += np.pi
             angles.append(tmpangle)
         angles = np.array(angles)
@@ -205,7 +218,7 @@ class Enemy(Player):
 
 
 def scaleAgainstCenter(scale, polygonPoints, center):
-    objectCenter = np.sum(polygonPoints, axis = 0)/polygonPoints.shape[0]
+    objectCenter = np.sum(polygonPoints, axis=0)/polygonPoints.shape[0]
     # print(f"center:  {objectCenter}")
     scaled = (polygonPoints - objectCenter)*scale + objectCenter
     scaled += center
@@ -221,14 +234,55 @@ def drawLinesForLevel(polygonPoints, scaledPolygonPoints, screen, color, width):
         pygame.draw.line(screen, color, polygonPoints[i], scaledPolygonPoints[i], width)
 
 
-def DrawGame(player, level, screen):
+def cameraPOVtransformation(cameraPos, polygonPoints, depth, d):
+    newPoints = []
+    output = []
+    for i in polygonPoints:
+        newPoints.append(i - resolution/2 + cameraPos)
+    newPoints = np.array(newPoints)
+    transformationMatrix = [
+        [d, 0, 0, 0],
+        [0, d, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 1, d]
+        ]
+    transformationMatrix = np.array(transformationMatrix)
+    newPoints3D = []
+    for i in newPoints:
+        # print(f"i={i}")
+        newPoints3D.append([i[0], i[1], depth, 1])
+    # print(f"newPoints3D{newPoints3D}")
+    newPoints3D = np.array(newPoints3D)
+    newPoints = np.matmul(newPoints3D, transformationMatrix)
+    # print(f"newPoints{newPoints}")
+    for i in newPoints:
+        # print(f"i3={i[3]}")
+        output.append(np.array([i[0]/(d+depth), i[1]/(d+depth)]) + resolution/2)
+    output = np.array(output)
+    return output
+
+
+def accelerateCam(player, level, cameraPos, velocity):
+    cameraP = cameraPos
+    ppos = level.localToLevelSpace(player.position, player.pointList)
+    cameraWish = -np.sum(ppos, axis=0)/ppos.shape[0]
+    cameraP = (cameraWish)/2 * velocity
+    return cameraP
+
+
+def DrawGame(player, level, screen, cameraP):
     # pygame.draw.polygon(screen, ())
-    scaled = scaleAgainstCenter(0.1, level.polygonPoints, np.array([0, 0]))
-    pygame.draw.polygon(screen, level.color, level.getPolygonPoints(), 1)
+    ppos = level.localToLevelSpace(player.position, player.pointList)
+
+    # scaled = scaleAgainstCenter(0.1, level.polygonPoints, np.array([cameraPos[0], cameraPos[1]]))
+    scaled = cameraPOVtransformation(cameraPos, level.polygonPoints, 10, 1)
+    front = cameraPOVtransformation(cameraPos, level.polygonPoints, 0, 1)
+
+    ppos = cameraPOVtransformation(cameraPos, ppos, 0, 1)
+    pygame.draw.polygon(screen, level.color, front, 1)
     pygame.draw.polygon(screen, level.color, scaled, 1)
-    # print(level.localToLevelSpace(player.position, player.pointList))
-    pygame.draw.polygon(screen, (0, 255, 0), level.localToLevelSpace(player.position, player.pointList), 1)
-    drawLinesForLevel(level.getPolygonPoints(), scaled, screen, level.color, 1)
+    pygame.draw.polygon(screen, (0, 255, 0), ppos, 1)
+    drawLinesForLevel(front, scaled, screen, level.color, 1)
 
 
 def DrawMainMenu():
@@ -258,7 +312,7 @@ clock = pygame.time.Clock()  # Object To Control The Framerate
 
 BaseSurface = pygame.Surface(resolution)
 screen.fill("black")
-
+cameraPos = np.array([0, 0])
 while True:
     for event in pygame.event.get():  # Checks for Events From Keyboard Or Mouse
         if event.type == pygame.QUIT:
@@ -272,10 +326,13 @@ while True:
                     BasePlayer.moveRight()
             print(BasePlayer)
     screen.fill("black")
-    DrawGame(BasePlayer, BaseLevel, screen)
+    cameraPos = accelerateCam(BasePlayer, BaseLevel, cameraPos, 0.1)
+    DrawGame(BasePlayer, BaseLevel, screen, cameraPos)
     DrawPauseMenu()
     DrawMainMenu()
     # print("screen")
     # pygame.display.update()
+    # cameraP[0] += 1
+    # cameraP[1] += 1
     pygame.display.flip()
     clock.tick(60)  # 60 Frames/Second
