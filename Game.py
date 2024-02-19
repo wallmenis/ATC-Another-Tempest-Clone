@@ -1,6 +1,7 @@
 from sys import exit
 import xml.etree.ElementTree as ET
 import os
+from sys import platform
 import re
 import shutil
 try:
@@ -10,8 +11,12 @@ try:
 except:
     if not os.path.isdir("gameEnv"):
         os.system("python3 -m venv gameEnv")
-        os.system("gameEnv/bin/python -m pip install pygame svg.path numpy")
-        os.system("gameEnv/bin/python Game.py")
+        if platform == "win32":
+            os.system("gameEnv\\bin\\python -m pip install pygame svg.path numpy")
+            os.system("gameEnv\\bin\\python Game.py")
+        else:
+            os.system("gameEnv/bin/python -m pip install pygame svg.path numpy")
+            os.system("gameEnv/bin/python Game.py")
         exit()
     try:
         import pygame
@@ -20,8 +25,12 @@ except:
     except:
         shutil.rmtree("gameEnv")
         os.system("python3 -m venv gameEnv")
-        os.system("gameEnv/bin/python -m pip install pygame svg.path numpy")
-        os.system("gameEnv/bin/python Game.py")
+        if sys.platform == "win32":
+            os.system("gameEnv\\bin\\python -m pip install pygame svg.path numpy")
+            os.system("gameEnv\\bin\\python Game.py")
+        else:
+            os.system("gameEnv/bin/python -m pip install pygame svg.path numpy")
+            os.system("gameEnv/bin/python Game.py")
         exit()
 
 # Default parameters
@@ -195,7 +204,7 @@ class Level:
                 tmpangle = np.pi/2.0
             else:
                 tmpangle = np.arctan(tmpangle[1]/tmpangle[0])
-            if tmp[1] < center[1]: # or tmp[0] < center[0]:
+            if tmp[1] < center[1] and tmp[0] > center[0]:
                 tmpangle += np.pi
             angles.append(tmpangle)
         angles = np.array(angles)
