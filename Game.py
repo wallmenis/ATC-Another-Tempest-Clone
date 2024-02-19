@@ -12,7 +12,7 @@ except:
     if not os.path.isdir("gameEnv"):
         os.system("python3 -m venv gameEnv")
         if platform == "win32":
-            os.system("gameEnv\\bin\\python -m pip install pygame svg.path numpy")
+            os.system("gameEnv\\bin\\python -m pip install pygame svg.path numpy") # reminder to use os.path next time
             os.system("gameEnv\\bin\\python Game.py")
         else:
             os.system("gameEnv/bin/python -m pip install pygame svg.path numpy")
@@ -34,10 +34,11 @@ except:
         exit()
 
 # Default parameters
-global resolution, dpi
+global resolution, dpi, play_mode, sensitivity
 dpi = 96
-resolution = np.array((800, 600))
-
+resolution = np.array((1280, 720))
+play_mode = "Demo"
+sensitivity = 0.2
 
 # def importPolygonFromSvg(svgfile):
 #     levelTree = ET.parse(svgfile)
@@ -71,10 +72,25 @@ def importPolygonFromSvg(svgfile):
     pp = svg.path.parse_path(levelPath)
     points = []
     pp.pop(0)
+    # topLeft = [pp[0].point(0).real, pp[0].point(0).imag]
+    # for i in pp:
+    #     if i.point(0).real + i.point(0).imag < topLeft[0] + topLeft[1]:
+    #         topLeft = [i.point(0).real, i.point(0).imag]
+    # print(f"topLeft{topLeft}")
+    counter = 0
+    s = [0, 0]
     for i in pp:
-        points.append([i.point(0).real, i.point(0).imag])
+        s = [s[0] + i.point(0).real, s[1] + i.point(0).imag]
+        counter += 1
+    s = [s[0]/counter, s[1]/counter]
+    for i in pp:
+        points.append([i.point(0).real - s[0], i.point(0).imag - s[1]])
     points = np.array(points)
-    levelGeom = milimetersToPixels(points)
+    points = milimetersToPixels(points)
+    levelGeom = []
+    for i in points:
+        levelGeom.append(i + resolution/2.0)
+    levelGeom = np.array(levelGeom)
     return levelGeom
 
 
@@ -110,6 +126,13 @@ class Player:
             if nocyc == 1:
                 tmpposition = tmpcycle - 1
         self.position = tmpposition
+
+    def refreshForResolution(self):
+        points = []
+        center = np.sum(self.pointList, axis=0)/pointList.shape[0]
+        for i in self.pointList:
+            points.append(i - center + resolution/2.0)
+        self.pointList = np.array(points)
 
     def __str__(self):
         iscyc = ""
@@ -159,7 +182,7 @@ class Level:
         return (-1) * len(self.positions)
 
     def localToLevelSpace(self, positionInLevel, pArray):
-        # print(self.positions[positionInLevel])
+        print(self.positionAngles[positionInLevel])
         # print(pointArray)
         objectCenter = np.sum(pArray, axis=0)/pArray.shape[0]
         sines = np.sin(self.positionAngles[positionInLevel])
@@ -178,11 +201,11 @@ class Level:
 
     def getPosAnglesFromPolygon(self, polygonPoints):
         angles = []
-        center = np.sum(polygonPoints, axis=0)/polygonPoints.shape[0]
         # print("test")
         for i in range(len(polygonPoints) - 1):
             tmpangle = polygonPoints[i] - polygonPoints[i+1]
-            tmpangle = (-1)*tmpangle
+            slope = polygonPoints[i] - polygonPoints[i+1]
+            # tmpangle = (-1)*tmpangle
             print(f"slope {tmpangle}")
             if tmpangle[1] == 0:
                 tmpangle = 0
@@ -190,13 +213,14 @@ class Level:
                 tmpangle = np.pi/2.0
             else:
                 tmpangle = np.arctan(tmpangle[1]/tmpangle[0])
-            tmp = (polygonPoints[i] + polygonPoints[i + 1]) / 2.0
-            if tmp[1] < resolution[1]/2.0:
+            if slope[0] < 0:
                 tmpangle += np.pi
+            # tmpangle = rotateIfLookingAway(tmp, center, tmpangle)
             angles.append(tmpangle)
         if self.cyclical is True:
             tmpangle = polygonPoints[0] - polygonPoints[len(polygonPoints) - 1]
-            tmpangle = (-1)*tmpangle
+            slope = polygonPoints[0] - polygonPoints[len(polygonPoints) - 1]
+            # tmpangle = (-1)*tmpangle
             print(f"slope {tmpangle}")
             if tmpangle[1] == 0:
                 tmpangle = 0
@@ -204,12 +228,20 @@ class Level:
                 tmpangle = np.pi/2.0
             else:
                 tmpangle = np.arctan(tmpangle[1]/tmpangle[0])
-            if tmp[1] < center[1] and tmp[0] > center[0]:
+            if slope[0] < 0:
                 tmpangle += np.pi
+            # tmpangle = rotateIfLookingAway(tmp, center, tmpangle)
             angles.append(tmpangle)
         angles = np.array(angles)
         print(f"Angles {angles*360/np.pi}")
         return angles
+
+    def refreshForResolution(self):
+        points = []
+        center = np.sum(self.polygonPoints, axis=0)/self.polygonPoints.shape[0]
+        for i in self.pointList:
+            points.append(i - center + resolution/2.0)
+        self.polygonPoints = np.array(points)
 
     def __str__(self):
         iscyc = ""
@@ -224,6 +256,23 @@ class Enemy(Player):
         self.cycle = c  # It is cyclical but some levels arent so we will set negative values for noncyclical levels
         self.pointList = importPolygonFromSvg(svgfile)
         self.depth = spawndepth
+
+
+def rotateIfLookingAway(point1, center, angle):
+    newAngle = angle
+    if point1[0] < center[0] and point1[1] < center[1]:
+        if angle < 0 or angle > np.pi/4:
+            newAngle += np.pi
+    if point1[0] > center[0] and point1[1] < center[1]:
+        if angle < 0 or angle < np.pi/4:
+            newAngle += np.pi
+    if point1[0] > center[0] and point1[1] > center[1]:
+        if angle > 0 or angle < -np.pi/4:
+            newAngle += np.pi
+    if point1[0] < center[0] and point1[1] > center[1]:
+        if angle > 0 or angle > -np.pi/4:
+            newAngle += np.pi
+    return newAngle
 
 
 def scaleAgainstCenter(scale, polygonPoints, center):
@@ -246,8 +295,9 @@ def drawLinesForLevel(polygonPoints, scaledPolygonPoints, screen, color, width):
 def cameraPOVtransformation(cameraPos, polygonPoints, depth, d):
     newPoints = []
     output = []
+    center = np.sum(polygonPoints, axis=0)/polygonPoints.shape[0]
     for i in polygonPoints:
-        newPoints.append(i - resolution/2 + cameraPos)
+        newPoints.append(i - center + cameraPos)
     newPoints = np.array(newPoints)
     transformationMatrix = [
         [d, 0, 0, 0],
@@ -266,16 +316,20 @@ def cameraPOVtransformation(cameraPos, polygonPoints, depth, d):
     # print(f"newPoints{newPoints}")
     for i in newPoints:
         # print(f"i3={i[3]}")
-        output.append(np.array([i[0]/(d+depth), i[1]/(d+depth)]) + resolution/2)
+        output.append(np.array([i[0]/(d+depth), i[1]/(d+depth)]) + center)
     output = np.array(output)
     return output
 
 
 def accelerateCam(player, level, cameraPos, velocity):
     cameraP = cameraPos
-    ppos = level.localToLevelSpace(player.position, player.pointList)
-    cameraWish = -np.sum(ppos, axis=0)/ppos.shape[0]
-    cameraP = (cameraWish)/2 * velocity
+    ppos = level.positions[player.position]
+    center = np.sum(level.polygonPoints, axis=0)/level.polygonPoints.shape[0]
+    cameraWish = (center-ppos)/(2) - cameraP
+    # print(ppos)
+    # print(cameraWish)
+    if 0 != cameraWish[0] or 0 != cameraWish[1]:
+        cameraP = cameraP + (cameraWish)*velocity
     return cameraP
 
 
@@ -322,20 +376,32 @@ clock = pygame.time.Clock()  # Object To Control The Framerate
 BaseSurface = pygame.Surface(resolution)
 screen.fill("black")
 cameraPos = np.array([0, 0])
+wishVector = 0
 while True:
     for event in pygame.event.get():  # Checks for Events From Keyboard Or Mouse
         if event.type == pygame.QUIT:
             pygame.quit()
             exit()
-        if event.type == pygame.KEYDOWN:
-            match event.key:
-                case pygame.K_LEFT:
-                    BasePlayer.moveLeft()
-                case pygame.K_RIGHT:
-                    BasePlayer.moveRight()
-            print(BasePlayer)
+        # if event.type == pygame.KEYDOWN:
+        #     match event.key:
+        #         case pygame.K_LEFT:
+        #             BasePlayer.moveLeft()
+        #         case pygame.K_RIGHT:
+        #             BasePlayer.moveRight()
+        #     print(BasePlayer)
+    keys = pygame.key.get_pressed()
+    if keys[pygame.K_LEFT]:
+        wishVector -= sensitivity
+    if keys[pygame.K_RIGHT]:
+        wishVector += sensitivity
+    if wishVector < -1:
+        BasePlayer.moveLeft()
+        wishVector = 0
+    if wishVector > 1:
+        BasePlayer.moveRight()
+        wishVector = 0
     screen.fill("black")
-    cameraPos = accelerateCam(BasePlayer, BaseLevel, cameraPos, 0.1)
+    cameraPos = accelerateCam(BasePlayer, BaseLevel, cameraPos, 0.4)
     DrawGame(BasePlayer, BaseLevel, screen, cameraPos)
     DrawPauseMenu()
     DrawMainMenu()
