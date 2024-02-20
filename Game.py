@@ -385,26 +385,52 @@ def DrawGame(player, level, screen, cameraP, projList, zoom):
         pygame.draw.polygon(screen, player.color, ppos, 1)
 
 
+def MoveToResolution(points, offset):
+    output = []
+    for i in points:
+        output.append(np.array(i) + resolution / 2  + offset)
+
+    return np.array(output)        
+
+
 def DrawMainMenu(screen):
     font = pygame.font.Font('freesansbold.ttf', 32)
+    logo = importPolygonFromSvg("Logo.svg")
 
     # create a text surface object,
     # on which text is drawn on it.
     text = font.render('Main Menu', True, (0, 255, 0))
+    text2 = font.render('Press Enter To Start Game Or Esc To Exit', True, (0, 255, 0))
 
     # create a rectangular object for the
     # text surface object
     textRect = text.get_rect()
+    textRect2 = text2.get_rect()
 
     # set the center of the rectangular object.
-    textRect.center = resolution/2
+    textRect.center = resolution/2 + np.array([0,-320])
+    textRect2.center = resolution/2 + np.array([0,300])
 
     screen.blit(text, textRect)
+    screen.blit(text2, textRect2)
+    
+    pygame.draw.polygon(screen, (255, 255, 255), MoveToResolution(logo, np.array([0,250])), 1)
 
 
 def DrawPauseMenu(screen):
-    option = False
-    return option
+    font = pygame.font.Font('freesansbold.ttf', 32)
+
+    text = font.render('Game Paused', True, (0, 255, 0))
+    text2 = font.render('Press Q To Exit Game Or Esc To Resume Game', True, (0, 255, 0))
+
+    textRect = text.get_rect()
+    textRect2 = text2.get_rect()
+
+    textRect.center = resolution/2 + np.array([0,-320])
+    textRect2.center = resolution/2 + np.array([0,300])
+
+    screen.blit(text, textRect)
+    screen.blit(text2, textRect2)
 
 
 def DrawStars(screen):
@@ -423,8 +449,25 @@ def DrawLoss(screen, transitionDelay):
 
 
 def DrawHUD(screen, player, levelcount):
-    option = False
-    return option
+
+    heart = importPolygonFromSvg("Heart.svg")
+
+    font = pygame.font.Font('freesansbold.ttf', 32)
+    text = font.render('Score:', True, (0, 255, 0))
+    textRect = text.get_rect()
+    textRect.center = resolution/2 + np.array([-570,-320])
+    screen.blit(text, textRect)
+
+    textRect = text.get_rect()
+
+    for i in range(player.lives):
+        pygame.draw.polygon(screen, (255, 0, 0), MoveToResolution(heart, np.array([450+i*50,-320])), 1)
+
+
+
+
+
+    
 
 
 ProjectileList = []
@@ -453,17 +496,40 @@ shootVector = 0
 zoom = startZoom
 levelCount = 0
 t = 0
+pauseBuffer = 0
+
 while True:
     for event in pygame.event.get():  # Checks for Events From Keyboard Or Mouse
         if event.type == pygame.QUIT:
             pygame.quit()
             exit()
     # print(zoom)
+    keys = pygame.key.get_pressed()
     if zoom > 0:
         zoom -= zoomSpeed
         BasePlayer.depth = zoom
+
+    if playMode == PlayMode.PAUSE:
+        if keys[pygame.K_ESCAPE]:
+            pauseBuffer += 0.2
+
+        if keys[pygame.K_q]:
+            pygame.quit()
+            exit()
+
+        if  pauseBuffer > 1:
+            playMode = PlayMode.PLAY
+            pauseBuffer = 0       
+
     if playMode == PlayMode.PLAY:
-        keys = pygame.key.get_pressed()
+
+        if keys[pygame.K_ESCAPE]:
+            pauseBuffer += 0.2
+
+        if  pauseBuffer > 1:
+            playMode = PlayMode.PAUSE
+            pauseBuffer = 0
+
         if keys[pygame.K_LEFT]:
             wishVector -= sensitivity
         if keys[pygame.K_RIGHT]:
@@ -472,6 +538,14 @@ while True:
             ProjectileList.append(BasePlayer.Shoot())
             shootVector = 1
     if playMode == PlayMode.DEMO:
+
+        if keys[pygame.K_RETURN]:
+            playMode = PlayMode.PLAY
+
+        if keys[pygame.K_ESCAPE]:
+            pygame.quit()
+            exit()
+
         if rnd.randint(0, 1) > 0:
             wishVector -= sensitivity
         if rnd.randint(0, 1) > 0:
@@ -480,6 +554,9 @@ while True:
             ProjectileList.append(BasePlayer.Shoot())
             # print("Shoot")
             shootVector = 1
+
+
+
     if wishVector < -1:
         BasePlayer.moveLeft()
         wishVector = 0
