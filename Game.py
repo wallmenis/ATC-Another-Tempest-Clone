@@ -4,6 +4,8 @@ import os
 from sys import platform
 import re
 import shutil
+from enum import Enum
+import random as rnd
 try:
     import pygame
     import svg.path
@@ -33,34 +35,28 @@ except:
             os.system("gameEnv/bin/python Game.py")
         exit()
 
+
+class PlayMode(Enum):
+    PLAY = 0
+    DEMO = 1
+    CHANGELEVEL = 2
+    PAUSE = 3
+
+
 # Default parameters
-global resolution, dpi, play_mode, sensitivity
+global resolution, dpi, playMode, sensitivity, shootCooldown, playDepth, deltaTime
 dpi = 96
 resolution = np.array((1280, 720))
-play_mode = "Demo"
+playMode = PlayMode.DEMO
 sensitivity = 0.2
+shootCooldown = 0.2
+playDepth = 10
+cameraSpeed = 0.2
+zoomSpeed = 0.1
+endZoom = -20
+startZoom = 5
+transitionDelay = 1200
 
-# def importPolygonFromSvg(svgfile):
-#     levelTree = ET.parse(svgfile)
-#     levelRoot = levelTree.getroot()
-#     print()
-#     path = "./g/path"
-#     path = re.sub("/", "/{http://www.w3.org/2000/svg}", path)
-#     levelGeom = levelRoot.find(path).attrib["d"]
-#     # levelGeom.pop(len(levelGeom) - 1)
-#     levelGeom = re.sub("[zlLZ]", "", levelGeom)
-#     levelGeom = " ".join(levelGeom.split())
-#     print(levelGeom)
-#     levelGeom = levelGeom.split(" ")
-#     symbol = levelGeom.pop(0)
-#     print(levelGeom)
-#     tmpLevelGeom = []
-#     for i in levelGeom:
-#         tmpLevelGeom.append([float(i.split(",")[0]), float(i.split(",")[1])])
-#     levelGeom = milimetersToPixels(np.array(tmpLevelGeom.copy()))
-#     if symbol == "m":
-#         levelGeom = np.cumsum(levelGeom, axis=0)
-#     return levelGeom
 
 def importPolygonFromSvg(svgfile):
     levelTree = ET.parse(svgfile)
@@ -72,11 +68,6 @@ def importPolygonFromSvg(svgfile):
     pp = svg.path.parse_path(levelPath)
     points = []
     pp.pop(0)
-    # topLeft = [pp[0].point(0).real, pp[0].point(0).imag]
-    # for i in pp:
-    #     if i.point(0).real + i.point(0).imag < topLeft[0] + topLeft[1]:
-    #         topLeft = [i.point(0).real, i.point(0).imag]
-    # print(f"topLeft{topLeft}")
     counter = 0
     s = [0, 0]
     for i in pp:
@@ -87,19 +78,19 @@ def importPolygonFromSvg(svgfile):
         points.append([i.point(0).real - s[0], i.point(0).imag - s[1]])
     points = np.array(points)
     points = milimetersToPixels(points)
-    levelGeom = []
-    for i in points:
-        levelGeom.append(i + resolution/2.0)
-    levelGeom = np.array(levelGeom)
+    levelGeom = points
     return levelGeom
 
 
 class Player:
-    def __init__(self, c, svgfile):
+    def __init__(self, c, svgfile, color, lives):
         self.position = 0  # The game is effectively cyclical 2D as far as the position.
         self.cycle = c  # It is cyclical but some levels arent so we will set negative values for noncyclical levels
         self.pointList = importPolygonFromSvg(svgfile)
         self.depth = 0
+        self.color = color
+        self.tag = "Player"
+        self.lives = lives
 
     def moveLeft(self):
         nocyc = 0
@@ -133,6 +124,9 @@ class Player:
         for i in self.pointList:
             points.append(i - center + resolution/2.0)
         self.pointList = np.array(points)
+
+    def Shoot(self):
+        return Projectile(self.position, self.depth-1, 3, 1, (255, 255, 255), self.tag)
 
     def __str__(self):
         iscyc = ""
@@ -182,8 +176,6 @@ class Level:
         return (-1) * len(self.positions)
 
     def localToLevelSpace(self, positionInLevel, pArray):
-        print(self.positionAngles[positionInLevel])
-        # print(pointArray)
         objectCenter = np.sum(pArray, axis=0)/pArray.shape[0]
         sines = np.sin(self.positionAngles[positionInLevel])
         cosines = np.cos(self.positionAngles[positionInLevel])
@@ -194,18 +186,15 @@ class Level:
             pointArray.append(tmp)
         endPosition = []
         for i in pointArray:
-            # print(i)
             endPosition.append(np.array(i) + self.positions[positionInLevel])
         endPosition = np.array(endPosition)
         return endPosition
 
     def getPosAnglesFromPolygon(self, polygonPoints):
         angles = []
-        # print("test")
         for i in range(len(polygonPoints) - 1):
             tmpangle = polygonPoints[i] - polygonPoints[i+1]
             slope = polygonPoints[i] - polygonPoints[i+1]
-            # tmpangle = (-1)*tmpangle
             print(f"slope {tmpangle}")
             if tmpangle[1] == 0:
                 tmpangle = 0
@@ -220,7 +209,6 @@ class Level:
         if self.cyclical is True:
             tmpangle = polygonPoints[0] - polygonPoints[len(polygonPoints) - 1]
             slope = polygonPoints[0] - polygonPoints[len(polygonPoints) - 1]
-            # tmpangle = (-1)*tmpangle
             print(f"slope {tmpangle}")
             if tmpangle[1] == 0:
                 tmpangle = 0
@@ -251,11 +239,42 @@ class Level:
 
 
 class Enemy(Player):
-    def __init__(self, c, svgfile, spawndepth, spawnpos):
+    def __init__(self, c, svgfile, spawndepth, spawnpos, color, lives):
         self.position = spawnpos  # The game is effectively cyclical 2D as far as the position.
         self.cycle = c  # It is cyclical but some levels arent so we will set negative values for noncyclical levels
         self.pointList = importPolygonFromSvg(svgfile)
         self.depth = spawndepth
+        self.color = color
+        self.tag = "Enemy"
+        self.lives = lives
+
+    def Shoot(self):
+        return Projectile(self.position, self.depth+1, 3, -1, (255, 255, 255), self.tag)
+
+    def Behaviour(self, player, level, projectileList):
+        self.moveLeft()
+
+    def __str__(self):
+        iscyc = ""
+        tmpcyc = self.cycle
+        if self.cycle > 0:
+            iscyc = "not "
+        else:
+            tmpcyc = tmpcyc * (-1)
+        return f"Enemy in position {self.position} in level with {tmpcyc} positions that is {iscyc}cyclical. Points making the shape: {self.pointList}"
+
+
+class Projectile():
+    def __init__(self, spawnpos, spawndepth, length, speed, color, tag):
+        self.position = spawnpos
+        self.depth = spawndepth
+        self.length = length
+        self.speed = speed
+        self.color = color
+        self.tag = tag
+
+    def moveProjectile(self):
+        self.depth += self.speed
 
 
 def rotateIfLookingAway(point1, center, angle):
@@ -295,10 +314,16 @@ def drawLinesForLevel(polygonPoints, scaledPolygonPoints, screen, color, width):
 def cameraPOVtransformation(cameraPos, polygonPoints, depth, d):
     newPoints = []
     output = []
-    center = np.sum(polygonPoints, axis=0)/polygonPoints.shape[0]
+    ddepth = depth
+    if ddepth < 0:
+        ddepth = (np.exp(ddepth)-1)/(np.exp(ddepth)+1)
+    # center = np.sum(polygonPoints, axis=0)/polygonPoints.shape[0]
+    # print(f"center:{center}")
     for i in polygonPoints:
-        newPoints.append(i - center + cameraPos)
+        newPoints.append(i + cameraPos)
     newPoints = np.array(newPoints)
+    # print(f"polygon:{polygonPoints}")
+    # print(f"newPoints:{newPoints.shape}")
     transformationMatrix = [
         [d, 0, 0, 0],
         [0, d, 0, 0],
@@ -309,16 +334,21 @@ def cameraPOVtransformation(cameraPos, polygonPoints, depth, d):
     newPoints3D = []
     for i in newPoints:
         # print(f"i={i}")
-        newPoints3D.append([i[0], i[1], depth, 1])
+        newPoints3D.append([i[0], i[1], ddepth, 1])
     # print(f"newPoints3D{newPoints3D}")
     newPoints3D = np.array(newPoints3D)
     newPoints = np.matmul(newPoints3D, transformationMatrix)
     # print(f"newPoints{newPoints}")
     for i in newPoints:
-        # print(f"i3={i[3]}")
-        output.append(np.array([i[0]/(d+depth), i[1]/(d+depth)]) + center)
+        output.append(np.array([i[0]/(d+ddepth), i[1]/(d+ddepth)])*resolutionScale()*2 + resolution/2.0)
     output = np.array(output)
     return output
+
+
+def resolutionScale():
+    if resolution[0] > resolution[1]:
+        return resolution[1]/resolution[0]
+    return resolution[0]/resolution[1]
 
 
 def accelerateCam(player, level, cameraPos, velocity):
@@ -326,50 +356,92 @@ def accelerateCam(player, level, cameraPos, velocity):
     ppos = level.positions[player.position]
     center = np.sum(level.polygonPoints, axis=0)/level.polygonPoints.shape[0]
     cameraWish = (center-ppos)/(2) - cameraP
-    # print(ppos)
-    # print(cameraWish)
     if 0 != cameraWish[0] or 0 != cameraWish[1]:
         cameraP = cameraP + (cameraWish)*velocity
     return cameraP
 
 
-def DrawGame(player, level, screen, cameraP):
-    # pygame.draw.polygon(screen, ())
+def DrawGame(player, level, screen, cameraP, projList, zoom):
     ppos = level.localToLevelSpace(player.position, player.pointList)
 
-    # scaled = scaleAgainstCenter(0.1, level.polygonPoints, np.array([cameraPos[0], cameraPos[1]]))
-    scaled = cameraPOVtransformation(cameraPos, level.polygonPoints, 10, 1)
-    front = cameraPOVtransformation(cameraPos, level.polygonPoints, 0, 1)
+    scaled = cameraPOVtransformation(cameraPos, level.polygonPoints, playDepth+zoom, 1)
+    front = cameraPOVtransformation(cameraPos, level.polygonPoints, zoom, 1)
+    ppos = cameraPOVtransformation(cameraPos, ppos, player.depth, 1)
 
-    ppos = cameraPOVtransformation(cameraPos, ppos, 0, 1)
+    for i in projList:
+        point1 = cameraPOVtransformation(cameraPos, np.array([level.positions[i.position]]), i.depth, 1)
+        point2 = cameraPOVtransformation(cameraPos, np.array([level.positions[i.position]]), i.depth + i.length, 1)
+        point1 = point1[0]
+        point2 = point2[0]
+        pygame.draw.line(screen, i.color, point1, point2)
     pygame.draw.polygon(screen, level.color, front, 1)
     pygame.draw.polygon(screen, level.color, scaled, 1)
-    pygame.draw.polygon(screen, (0, 255, 0), ppos, 1)
     drawLinesForLevel(front, scaled, screen, level.color, 1)
+    for enemy in level.enemyList:
+        ipos = level.localToLevelSpace(enemy.position, enemy.pointList)
+        ipos = cameraPOVtransformation(cameraPos, ipos, enemy.depth, 1)
+        pygame.draw.polygon(screen, enemy.color, ipos, 1)
+    if playMode != PlayMode.CHANGELEVEL:
+        pygame.draw.polygon(screen, player.color, ppos, 1)
 
 
-def DrawMainMenu():
+def DrawMainMenu(screen):
+    font = pygame.font.Font('freesansbold.ttf', 32)
+
+    # create a text surface object,
+    # on which text is drawn on it.
+    text = font.render('Main Menu', True, (0, 255, 0))
+
+    # create a rectangular object for the
+    # text surface object
+    textRect = text.get_rect()
+
+    # set the center of the rectangular object.
+    textRect.center = resolution/2
+
+    screen.blit(text, textRect)
+
+
+def DrawPauseMenu(screen):
     option = False
     return option
 
 
-def DrawPauseMenu():
+def DrawStars(screen):
     option = False
     return option
 
+
+def DrawWin(screen):
+    option = False
+    return option
+
+
+def DrawLoss(screen, transitionDelay):
+    option = False
+    return option
+
+
+def DrawHUD(screen, player, levelcount):
+    option = False
+    return option
+
+
+ProjectileList = []
 
 LevelList = []
 LevelList.append(Level(1, [], "Level1.svg", (0, 0, 255)))
+LevelList[0].enemyList.append(Enemy(LevelList[0].getCyclicalForPlayer(), "Enemy_Low.svg", playDepth, 0 , (255, 0, 0), 1))
 
 BaseLevel = LevelList[0]
-BasePlayer = Player(BaseLevel.getCyclicalForPlayer(), "Player.svg")
+BasePlayer = Player(BaseLevel.getCyclicalForPlayer(), "Player.svg", (0, 255, 0), 3)
 # PletList
 
 print(BaseLevel)
 print(BasePlayer)
 
 pygame.init()
-screen = pygame.display.set_mode(resolution)  # Set Resolution    h,w
+screen = pygame.display.set_mode(resolution, pygame.RESIZABLE)  # Set Resolution    h,w
 pygame.display.set_caption("Another Tempest Clone")  # Sets Name For The Game
 clock = pygame.time.Clock()  # Object To Control The Framerate
 
@@ -377,37 +449,90 @@ BaseSurface = pygame.Surface(resolution)
 screen.fill("black")
 cameraPos = np.array([0, 0])
 wishVector = 0
+shootVector = 0
+zoom = startZoom
+levelCount = 0
+t = 0
 while True:
     for event in pygame.event.get():  # Checks for Events From Keyboard Or Mouse
         if event.type == pygame.QUIT:
             pygame.quit()
             exit()
-        # if event.type == pygame.KEYDOWN:
-        #     match event.key:
-        #         case pygame.K_LEFT:
-        #             BasePlayer.moveLeft()
-        #         case pygame.K_RIGHT:
-        #             BasePlayer.moveRight()
-        #     print(BasePlayer)
-    keys = pygame.key.get_pressed()
-    if keys[pygame.K_LEFT]:
-        wishVector -= sensitivity
-    if keys[pygame.K_RIGHT]:
-        wishVector += sensitivity
+    # print(zoom)
+    if zoom > 0:
+        zoom -= zoomSpeed
+        BasePlayer.depth = zoom
+    if playMode == PlayMode.PLAY:
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            wishVector -= sensitivity
+        if keys[pygame.K_RIGHT]:
+            wishVector += sensitivity
+        if keys[pygame.K_SPACE] and shootVector <= 0:
+            ProjectileList.append(BasePlayer.Shoot())
+            shootVector = 1
+    if playMode == PlayMode.DEMO:
+        if rnd.randint(0, 1) > 0:
+            wishVector -= sensitivity
+        if rnd.randint(0, 1) > 0:
+            wishVector += sensitivity
+        if rnd.randint(0, 1) > 0 and shootVector <= 0:
+            ProjectileList.append(BasePlayer.Shoot())
+            # print("Shoot")
+            shootVector = 1
     if wishVector < -1:
         BasePlayer.moveLeft()
         wishVector = 0
     if wishVector > 1:
         BasePlayer.moveRight()
         wishVector = 0
+    if shootVector > 0:
+        shootVector -= shootCooldown
+
+    if playMode == PlayMode.CHANGELEVEL:
+        DrawStars(screen)
+        if levelCount > len(LevelList) - 2:
+            if transitionDelay > t:
+                t += 1
+            else:
+                playMode = PlayMode.DEMO
+            DrawWin(screen)
+        else:
+            levelCount += 1
+            BaseLevel = LevelList[levelCount]
+            playMode = PlayMode.PLAY
+            zoom = startZoom
+
+    if len(BaseLevel.enemyList) < 1 and zoom >= endZoom:
+        zoom -= zoomSpeed
+        t = 0
+    if zoom < endZoom:
+        playMode = PlayMode.CHANGELEVEL
+
+    if playMode == PlayMode.PLAY or playMode == PlayMode.DEMO:
+        for i in BaseLevel.enemyList:
+            i.Behaviour(BasePlayer, BaseLevel, ProjectileList)
+
+    i = 0
+    while i < len(ProjectileList):
+        ProjectileList[i].moveProjectile()
+        if ProjectileList[i].depth > playDepth:
+            ProjectileList.pop(i)
+            i -= 1
+        i += 1
+
+    if BasePlayer.lives == 0:
+        DrawLoss(screen, transitionDelay)
+        playMode = PlayMode.DEMO
+
     screen.fill("black")
-    cameraPos = accelerateCam(BasePlayer, BaseLevel, cameraPos, 0.4)
-    DrawGame(BasePlayer, BaseLevel, screen, cameraPos)
-    DrawPauseMenu()
-    DrawMainMenu()
-    # print("screen")
-    # pygame.display.update()
-    # cameraP[0] += 1
-    # cameraP[1] += 1
+    cameraPos = accelerateCam(BasePlayer, BaseLevel, cameraPos, cameraSpeed)
+    DrawGame(BasePlayer, BaseLevel, screen, cameraPos, ProjectileList, zoom)
+    DrawHUD(screen, BasePlayer, levelCount)
+    if playMode == PlayMode.PAUSE:
+        DrawPauseMenu(screen)
+    if playMode == PlayMode.DEMO:
+        DrawMainMenu(screen)
     pygame.display.flip()
-    clock.tick(60)  # 60 Frames/Second
+    resolution = np.array(pygame.display.get_window_size())
+    deltaTime = clock.tick(60)  # 60 Frames/Second
