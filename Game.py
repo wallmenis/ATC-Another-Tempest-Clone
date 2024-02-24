@@ -7,7 +7,7 @@ try:
     import pygame
     import svg.path
     import numpy as np
-    import gnumpy as gnp
+    # import gnumpy as gnp
 except:
     print("Please delete folder gameEnv and try again.")
 
@@ -18,6 +18,10 @@ class PlayMode(Enum):
     CHANGELEVEL = 2
     PAUSE = 3
 
+
+class EntityTag(Enum):
+    PLAYER = 0
+    ENEMY = 1
 
 # Default parameters
 global resolution, dpi, playMode, sensitivity, shootCooldown, playDepth, deltaTime
@@ -57,6 +61,7 @@ def importPolygonFromSvg(svgfile):
     return levelGeom
 
 
+
 class Player:
     def __init__(self, c, svgfile, color, lives):
         self.position = 0  # The game is effectively cyclical 2D as far as the position.
@@ -64,7 +69,7 @@ class Player:
         self.pointList = importPolygonFromSvg(svgfile)
         self.depth = 0
         self.color = color
-        self.tag = "Player"
+        self.tag = EntityTag.PLAYER
         self.lives = lives
 
     def moveLeft(self):
@@ -116,7 +121,7 @@ class Player:
 
 
 class Level:
-    def __init__(self, lvlnum, enLst, svgfile, color):
+    def __init__(self, lvlnum, enLst, svgfile, color, concurrentEnemies):
         self.levelNumber = lvlnum
         self.enemyList = enLst
         self.polygonPoints = importPolygonFromSvg(svgfile)
@@ -124,6 +129,7 @@ class Level:
         self.positions = self.getPositionsFromPolygon(self.polygonPoints)
         self.positionAngles = self.getPosAnglesFromPolygon(self.polygonPoints)
         self.color = color
+        self.concurrentEnemies = concurrentEnemies
 
     def importCyclicalFromSvg(self, svgfile):
         levelTree = ET.parse(svgfile)
@@ -224,16 +230,34 @@ class Enemy(Player):
         self.pointList = importPolygonFromSvg(svgfile)
         self.depth = spawndepth
         self.color = color
-        self.tag = "Enemy"
+        self.tag = EntityTag.ENEMY
         self.lives = lives
+        self.movementBuffer = 0
+        self.speed = 0.2
 
     def Shoot(self):
         return Projectile(
             self.position, self.depth + 1, 3, -1, (255, 255, 255), self.tag
         )
 
-    def Behaviour(self, player, level, projectileList):
-        self.moveLeft()
+    def Behaviour(self, player, level, projectileList, randomness):
+        distFromPlayer = player.position - self.position
+        print(distFromPlayer)
+        if distFromPlayer > 0:
+            self.movementBuffer += self.speed - rnd.randint(0, 10)/10.0 * randomness * self.speed
+
+        if distFromPlayer < 0:
+            self.movementBuffer -= self.speed + rnd.randint(0, 10)/10.0 * randomness * self.speed
+
+        if self.movementBuffer < -1:
+            self.moveRight()
+            self.movementBuffer = 0
+
+        if self.movementBuffer > 1:
+            self.moveLeft()
+            self.movementBuffer = 0
+
+        # self.depth -= 0.1
 
     def __str__(self):
         iscyc = ""
@@ -349,16 +373,17 @@ def DrawGame(player, level, screen, cameraP, projList, zoom):
     front = cameraPOVtransformation(cameraPos, level.polygonPoints, zoom, 1)
     ppos = cameraPOVtransformation(cameraPos, ppos, player.depth, 1)
 
-    for i in projList:
-        point1 = cameraPOVtransformation(
-            cameraPos, np.array([level.positions[i.position]]), i.depth, 1
-        )
-        point2 = cameraPOVtransformation(
-            cameraPos, np.array([level.positions[i.position]]), i.depth + i.length, 1
-        )
-        point1 = point1[0]
-        point2 = point2[0]
-        pygame.draw.line(screen, i.color, point1, point2)
+    for j in projList:
+        for i in j:
+            point1 = cameraPOVtransformation(
+                cameraPos, np.array([level.positions[i.position]]), i.depth, 1
+            )
+            point2 = cameraPOVtransformation(
+                cameraPos, np.array([level.positions[i.position]]), i.depth + i.length, 1
+            )
+            point1 = point1[0]
+            point2 = point2[0]
+            pygame.draw.line(screen, i.color, point1, point2)
     pygame.draw.polygon(screen, level.color, front, 1)
     pygame.draw.polygon(screen, level.color, scaled, 1)
     drawLinesForLevel(front, scaled, screen, level.color, 1)
@@ -378,9 +403,12 @@ def MoveToResolution(points, offset):
     return np.array(output)
 
 
+logo = importPolygonFromSvg("Logo.svg")
+
+
 def DrawMainMenu(screen):
     font = pygame.font.Font("freesansbold.ttf", 32)
-    logo = importPolygonFromSvg("Logo.svg")
+
 
     # create a text surface object,
     # on which text is drawn on it.
@@ -435,9 +463,10 @@ def DrawLoss(screen, transitionDelay):
     return option
 
 
-def DrawHUD(screen, player, levelcount):
+heart = importPolygonFromSvg("Heart.svg")
 
-    heart = importPolygonFromSvg("Heart.svg")
+
+def DrawHUD(screen, player, levelcount):
 
     font = pygame.font.Font("freesansbold.ttf", 32)
     text = font.render("Score:", True, (0, 255, 0))
@@ -459,7 +488,7 @@ def DrawHUD(screen, player, levelcount):
 ProjectileList = []
 
 LevelList = []
-LevelList.append(Level(1, [], "Level1.svg", (0, 0, 255)))
+LevelList.append(Level(1, [], "Level1.svg", (0, 0, 255), 5))
 LevelList[0].enemyList.append(
     Enemy(
         LevelList[0].getCyclicalForPlayer(),
@@ -473,13 +502,16 @@ LevelList[0].enemyList.append(
 
 BaseLevel = LevelList[0]
 BasePlayer = Player(BaseLevel.getCyclicalForPlayer(), "Player.svg", (0, 255, 0), 3)
-# PletList
+
+for i in range(len(BaseLevel.positions)):
+    ProjectileList.append([])
+print(f"pjlist{ProjectileList}")
 
 print(BaseLevel)
 print(BasePlayer)
 
 pygame.init()
-screen = pygame.display.set_mode(resolution, pygame.RESIZABLE)  # Set Resolution    h,w
+screen = pygame.display.set_mode(resolution, pygame.RESIZABLE)  # Set Resolution
 pygame.display.set_caption("Another Tempest Clone")  # Sets Name For The Game
 clock = pygame.time.Clock()  # Object To Control The Framerate
 
@@ -492,45 +524,49 @@ zoom = startZoom
 levelCount = 0
 t = 0
 pauseBuffer = 0
+pauseBufferDiff = 0
+prevPauseBuffer = 0
 
 while True:
+    prevPauseBuffer = pauseBuffer
     for event in pygame.event.get():  # Checks for Events From Keyboard Or Mouse
         if event.type == pygame.QUIT:
             pygame.quit()
             exit()
     # print(zoom)
     keys = pygame.key.get_pressed()
+    if keys[pygame.K_ESCAPE]:
+        pauseBuffer = 1
+    else:
+        pauseBuffer = 0
+    pauseBufferDiff = pauseBuffer - prevPauseBuffer
+
     if zoom > 0:
         zoom -= zoomSpeed
         BasePlayer.depth = zoom
 
     if playMode == PlayMode.PAUSE:
-        if keys[pygame.K_ESCAPE]:
-            pauseBuffer += 0.2
 
         if keys[pygame.K_q]:
             pygame.quit()
             exit()
 
-        if pauseBuffer > 1:
+        if pauseBufferDiff == 1:
             playMode = PlayMode.PLAY
-            pauseBuffer = 0
+            pauseBufferDiff = 0
 
     if playMode == PlayMode.PLAY:
 
-        if keys[pygame.K_ESCAPE]:
-            pauseBuffer += 0.2
-
-        if pauseBuffer > 1:
+        if pauseBufferDiff == 1:
             playMode = PlayMode.PAUSE
-            pauseBuffer = 0
+            pauseBufferDiff = 0
 
         if keys[pygame.K_LEFT]:
             wishVector -= sensitivity
         if keys[pygame.K_RIGHT]:
             wishVector += sensitivity
         if keys[pygame.K_SPACE] and shootVector <= 0:
-            ProjectileList.append(BasePlayer.Shoot())
+            ProjectileList[BasePlayer.position].append(BasePlayer.Shoot())
             shootVector = 1
 
     if playMode == PlayMode.DEMO:
@@ -538,7 +574,7 @@ while True:
         if keys[pygame.K_RETURN]:
             playMode = PlayMode.PLAY
             zoom = startZoom
-        if keys[pygame.K_ESCAPE]:
+        if pauseBuffer == 1:
             pygame.quit()
             exit()
 
@@ -547,7 +583,9 @@ while True:
         if rnd.randint(0, 1) > 0:
             wishVector += sensitivity
         if rnd.randint(0, 1) > 0 and shootVector <= 0:
-            ProjectileList.append(BasePlayer.Shoot())
+
+            ProjectileList[BasePlayer.position].append(BasePlayer.Shoot())
+            print(f"baseplayerpos{BasePlayer.position} and object {ProjectileList[BasePlayer.position]}")
             # print("Shoot")
             shootVector = 1
 
@@ -571,6 +609,9 @@ while True:
         else:
             levelCount += 1
             BaseLevel = LevelList[levelCount]
+            ProjectileList = []
+            for i in range(len(BaseLevel.positions)):
+                ProjectileList.append([])
             playMode = PlayMode.PLAY
             zoom = startZoom
 
@@ -580,19 +621,33 @@ while True:
     if zoom < endZoom:
         playMode = PlayMode.CHANGELEVEL
 
-    if playMode == PlayMode.PLAY or playMode == PlayMode.DEMO:
-        for i in BaseLevel.enemyList:
-            i.Behaviour(BasePlayer, BaseLevel, ProjectileList)
+    if playMode != PlayMode.PAUSE and zoom <= 0:
+        en = 0
+        while en < min(len(BaseLevel.enemyList), BaseLevel.concurrentEnemies):
+            BaseLevel.enemyList[en].Behaviour(BasePlayer, BaseLevel, ProjectileList, 1)
+            if BaseLevel.enemyList[en].lives < 1:
+                BaseLevel.enemyList.pop(en)
+                en -= 1
+            en += 1
+
+
 
     i = 0
     while i < len(ProjectileList):
-        ProjectileList[i].moveProjectile()
-        if ProjectileList[i].depth > playDepth:
-            ProjectileList.pop(i)
-            i -= 1
+        j = 0
+        # print(ProjectileList[i])
+        while j < len(ProjectileList[i]):
+            ProjectileList[i][j].moveProjectile()
+            if ProjectileList[i][j].depth > playDepth:
+                popped = ProjectileList[i].pop(j)
+                print(f"popped{popped}")
+                j -= 1
+            j += 1
         i += 1
 
-    if BasePlayer.lives == 0:
+    # print(ProjectileList)
+
+    if BasePlayer.lives < 1:
         DrawLoss(screen, transitionDelay)
         playMode = PlayMode.DEMO
 
