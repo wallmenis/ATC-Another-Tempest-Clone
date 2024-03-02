@@ -3,13 +3,10 @@ import xml.etree.ElementTree as ET
 import re
 from enum import Enum
 import random as rnd
-try:
-    import pygame
-    import svg.path
-    import numpy as np
-    # import gnumpy as gnp
-except:
-    print("Please delete folder gameEnv and try again.")
+import pygame
+import svg.path
+import numpy as np
+# from numba import jit
 
 
 class PlayMode(Enum):
@@ -61,7 +58,6 @@ def importPolygonFromSvg(svgfile):
     return levelGeom
 
 
-
 class Player:
     def __init__(self, c, svgfile, color, lives):
         self.position = 0  # The game is effectively cyclical 2D as far as the position.
@@ -97,13 +93,6 @@ class Player:
             if nocyc == 1:
                 tmpposition = tmpcycle - 1
         self.position = tmpposition
-
-    def refreshForResolution(self):
-        points = []
-        center = np.sum(self.pointList, axis=0) / pointList.shape[0]
-        for i in self.pointList:
-            points.append(i - center + resolution / 2.0)
-        self.pointList = np.array(points)
 
     def Shoot(self):
         return Projectile(
@@ -158,6 +147,7 @@ class Level:
             return len(self.positions)
         return (-1) * len(self.positions)
 
+    # @jit
     def localToLevelSpace(self, positionInLevel, pArray):
         objectCenter = np.sum(pArray, axis=0) / pArray.shape[0]
         sines = np.sin(self.positionAngles[positionInLevel])
@@ -206,13 +196,6 @@ class Level:
         angles = np.array(angles)
         print(f"Angles {angles*360/np.pi}")
         return angles
-
-    def refreshForResolution(self):
-        points = []
-        center = np.sum(self.polygonPoints, axis=0) / self.polygonPoints.shape[0]
-        for i in self.pointList:
-            points.append(i - center + resolution / 2.0)
-        self.polygonPoints = np.array(points)
 
     def __str__(self):
         iscyc = ""
@@ -306,16 +289,16 @@ def scaleAgainstCenter(scale, polygonPoints, center):
     scaled += center
     return scaled
 
-
+# @jit
 def milimetersToPixels(pointArray):
     return pointArray * dpi * 0.03937008
 
-
+# @jit
 def drawLinesForLevel(polygonPoints, scaledPolygonPoints, screen, color, width):
     for i in range(polygonPoints.shape[0]):
         pygame.draw.line(screen, color, polygonPoints[i], scaledPolygonPoints[i], width)
 
-
+# @jit
 def cameraPOVtransformation(cameraPos, polygonPoints, depth, d):
     newPoints = []
     output = []
@@ -347,13 +330,13 @@ def cameraPOVtransformation(cameraPos, polygonPoints, depth, d):
     output = np.array(output)
     return output
 
-
+# @jit
 def resolutionScale():
     if resolution[0] > resolution[1]:
         return resolution[1] / resolution[0]
     return resolution[0] / resolution[1]
 
-
+# @jit
 def accelerateCam(player, level, cameraPos, velocity):
     cameraP = cameraPos
     ppos = level.positions[player.position]

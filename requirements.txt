@@ -2,3 +2,4 @@ pygame
 numpy
 svg.path
 gnumpy
+numba
