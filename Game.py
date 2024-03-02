@@ -469,9 +469,9 @@ def DrawHUD(screen, player, levelcount):
 
 
 ProjectileList = []
-
 LevelList = []
-LevelList.append(Level(1, [], "Level1.svg", (0, 0, 255), 5))
+
+LevelList.append(Level(1, [], "Level1.svg", (0, 0, 255), 3))    ####### eixame 5 anti gia 3
 LevelList[0].enemyList.append(
     Enemy(
         LevelList[0].getCyclicalForPlayer(),
@@ -482,6 +482,47 @@ LevelList[0].enemyList.append(
         1,
     )
 )
+
+LevelList.append(Level(2, [],"Level2.svg", (0, 0, 255), 4))
+
+LevelList[1].enemyList.append(
+    Enemy(
+        LevelList[1].getCyclicalForPlayer(),
+        "Enemy_Low.svg",
+        playDepth,
+        0,
+        (255, 0, 0),
+        1,
+    )
+)
+
+LevelList[1].enemyList.append(
+    Enemy(
+        LevelList[1].getCyclicalForPlayer(),
+        "Enemy_Medium.svg",
+        playDepth,
+        0,
+        (255, 0, 0),
+        2,
+    )
+)
+
+
+LevelList.append(Level(3, [],"Level3.svg", (0, 0, 255), 5))
+
+LevelList[2].enemyList.append(
+    Enemy(
+        LevelList[2].getCyclicalForPlayer(),
+        "Enemy_Medium.svg",
+        playDepth,
+        0,
+        (255, 0, 0),
+        3,
+    )
+)
+
+
+
 
 BaseLevel = LevelList[0]
 BasePlayer = Player(BaseLevel.getCyclicalForPlayer(), "Player.svg", (0, 255, 0), 3)
@@ -510,6 +551,13 @@ pauseBuffer = 0
 pauseBufferDiff = 0
 prevPauseBuffer = 0
 
+
+#Sounds Initialization
+shoot_effect = pygame.mixer.Sound("shoot_effect.mp3")
+death_session = pygame.mixer.Sound("death_session.wav")
+pause_session = pygame.mixer.Sound("pause_session.wav")
+
+
 while True:
     prevPauseBuffer = pauseBuffer
     for event in pygame.event.get():  # Checks for Events From Keyboard Or Mouse
@@ -520,9 +568,11 @@ while True:
     keys = pygame.key.get_pressed()
     if keys[pygame.K_ESCAPE]:
         pauseBuffer = 1
+        
     else:
         pauseBuffer = 0
     pauseBufferDiff = pauseBuffer - prevPauseBuffer
+
 
     if zoom > 0:
         zoom -= zoomSpeed
@@ -542,6 +592,7 @@ while True:
 
         if pauseBufferDiff == 1:
             playMode = PlayMode.PAUSE
+            pause_session.play()
             pauseBufferDiff = 0
 
         if keys[pygame.K_LEFT]:
@@ -551,6 +602,7 @@ while True:
         if keys[pygame.K_SPACE] and shootVector <= 0:
             ProjectileList[BasePlayer.position].append(BasePlayer.Shoot())
             shootVector = 1
+            shoot_effect.play()
 
     if playMode == PlayMode.DEMO:
 
@@ -571,6 +623,7 @@ while True:
             print(f"baseplayerpos{BasePlayer.position} and object {ProjectileList[BasePlayer.position]}")
             # print("Shoot")
             shootVector = 1
+            shoot_effect.play()
 
     if wishVector < -1:
         BasePlayer.moveLeft()
