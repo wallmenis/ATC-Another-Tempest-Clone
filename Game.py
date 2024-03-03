@@ -220,7 +220,7 @@ class Enemy(Player):
 
     def Shoot(self):
         return Projectile(
-            self.position, self.depth + 1, 3, -1, (255, 255, 255), self.tag
+            self.position, self.depth + 1, 3, -1, (255, 0, 0), self.tag
         )
 
     def Behaviour(self, player, level, projectileList, randomness):
@@ -239,6 +239,10 @@ class Enemy(Player):
         if self.movementBuffer > 1:
             self.moveLeft()
             self.movementBuffer = 0
+
+        if player.position == self.position:
+            projectileList[self.position].append(self.Shoot())
+            
 
         # self.depth -= 0.1
 
