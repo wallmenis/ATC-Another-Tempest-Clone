@@ -404,14 +404,14 @@ def DrawMainMenu(screen):
     textRect2 = text2.get_rect()
 
     # set the center of the rectangular object.
-    textRect.center = resolution / 2 + np.array([0, -320])
-    textRect2.center = resolution / 2 + np.array([0, 300])
+    textRect.center = resolution / 2 + np.array([-30, -320])
+    textRect2.center = resolution / 2 + np.array([-25, 300])
 
     screen.blit(text, textRect)
     screen.blit(text2, textRect2)
 
     pygame.draw.polygon(
-        screen, (255, 255, 255), MoveToResolution(logo, np.array([0, 250])), 1
+        screen, (255, 255, 255), MoveToResolution(logo, np.array([-30, 250])), 1
     )
 
 
@@ -424,8 +424,8 @@ def DrawPauseMenu(screen):
     textRect = text.get_rect()
     textRect2 = text2.get_rect()
 
-    textRect.center = resolution / 2 + np.array([0, -320])
-    textRect2.center = resolution / 2 + np.array([0, 300])
+    textRect.center = resolution / 2 + np.array([-25, -320])
+    textRect2.center = resolution / 2 + np.array([-15, 300])
 
     screen.blit(text, textRect)
     screen.blit(text2, textRect2)
@@ -437,13 +437,28 @@ def DrawStars(screen):
 
 
 def DrawWin(screen):
-    option = False
-    return option
+    font = pygame.font.Font("freesansbold.ttf", 32)
+
+    win_text = font.render("Congratulations You Win!!", True, (0, 255, 0))
+
+    textRect = win_text.get_rect()
+
+    textRect.center = resolution / 2 + np.array([-30, -320])
+
+    screen.blit(win_text, textRect)
+
 
 
 def DrawLoss(screen, transitionDelay):
-    option = False
-    return option
+    font = pygame.font.Font("freesansbold.ttf", 32)
+
+    game_over_text = font.render("Game Over", True, (255, 0, 0))
+
+    textRect = game_over_text.get_rect()
+
+    textRect.center = resolution / 2 + np.array([-30, -320])
+
+    screen.blit(game_over_text, textRect)
 
 
 heart = importPolygonFromSvg("Heart.svg")
@@ -463,7 +478,7 @@ def DrawHUD(screen, player, levelcount):
         pygame.draw.polygon(
             screen,
             (255, 0, 0),
-            MoveToResolution(heart, np.array([450 + i * 50, -320])),
+            MoveToResolution(heart, np.array([500 + i * 50, -320])),
             1,
         )
 
