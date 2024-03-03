@@ -471,6 +471,7 @@ def DrawHUD(screen, player, levelcount):
 ProjectileList = []
 LevelList = []
 
+#Level 1
 LevelList.append(Level(1, [], "Level1.svg", (0, 0, 255), 3))    ####### eixame 5 anti gia 3
 LevelList[0].enemyList.append(
     Enemy(
@@ -483,6 +484,7 @@ LevelList[0].enemyList.append(
     )
 )
 
+#Level 2
 LevelList.append(Level(2, [],"Level2.svg", (0, 0, 255), 4))
 
 LevelList[1].enemyList.append(
@@ -507,7 +509,7 @@ LevelList[1].enemyList.append(
     )
 )
 
-
+#Level 3
 LevelList.append(Level(3, [],"Level3.svg", (0, 0, 255), 5))
 
 LevelList[2].enemyList.append(
@@ -521,6 +523,93 @@ LevelList[2].enemyList.append(
     )
 )
 
+#Level 4
+LevelList.append(Level(4, [],"Level4.svg", (0, 0, 255), 6))
+
+LevelList[3].enemyList.append(
+    Enemy(
+        LevelList[3].getCyclicalForPlayer(),
+        "Enemy_Low.svg",
+        playDepth,
+        0,
+        (255, 0, 0),
+        2,
+    )
+)
+
+LevelList[3].enemyList.append(
+    Enemy(
+        LevelList[3].getCyclicalForPlayer(),
+        "Enemy_Medium.svg",
+        playDepth,
+        0,
+        (255, 0, 0),
+        3,
+    )
+)
+
+#Level 5
+LevelList.append(Level(5, [],"Level5.svg", (0, 0, 255), 7))
+
+LevelList[4].enemyList.append(
+    Enemy(
+        LevelList[4].getCyclicalForPlayer(),
+        "Enemy_Medium.svg",
+        playDepth,
+        0,
+        (255, 0, 0),
+        3,
+    )
+)
+
+LevelList[4].enemyList.append(
+    Enemy(
+        LevelList[4].getCyclicalForPlayer(),
+        "Enemy_High.svg",
+        playDepth,
+        0,
+        (255, 0, 0),
+        5,
+    )
+)
+
+#Level 6
+LevelList.append(Level(6, [],"Level6.svg", (0, 0, 255), 8))
+
+
+LevelList[5].enemyList.append(
+    Enemy(
+        LevelList[5].getCyclicalForPlayer(),
+        "Enemy_Low.svg",
+        playDepth,
+        0,
+        (255, 0, 0),
+        2,
+    )
+)
+
+
+LevelList[5].enemyList.append(
+    Enemy(
+        LevelList[5].getCyclicalForPlayer(),
+        "Enemy_Medium.svg",
+        playDepth,
+        0,
+        (255, 0, 0),
+        3,
+    )
+)
+
+LevelList[5].enemyList.append(
+    Enemy(
+        LevelList[5].getCyclicalForPlayer(),
+        "Enemy_High.svg",
+        playDepth,
+        0,
+        (255, 0, 0),
+        5,
+    )
+)
 
 
 
