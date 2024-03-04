@@ -6,6 +6,8 @@ import random as rnd
 import pygame
 import svg.path
 import numpy as np
+import copy
+import time
 # from numba import jit
 
 
@@ -32,7 +34,10 @@ cameraSpeed = 0.2
 zoomSpeed = 0.1
 endZoom = -20
 startZoom = 5
-transitionDelay = 1200
+transitionDelay = 12
+starDepth = 0
+starDepthEnd = 20
+starNumber = 20
 
 
 def importPolygonFromSvg(svgfile):
@@ -94,6 +99,25 @@ class Player:
                 tmpposition = tmpcycle - 1
         self.position = tmpposition
 
+    def toCycle(self, inpPos):
+        nocyc = 0
+        tmpcycle = self.cycle
+        if self.cycle < 0:
+            nocyc = 1
+            tmpcycle = tmpcycle * (-1)
+        tmpposition = inpPos
+        if nocyc == 1:
+            if tmpposition < 0:
+                tmpposition = tmpcycle - 1
+            if tmpposition > tmpcycle - 1:
+                tmpposition = 0
+        else:
+            if tmpposition < 0:
+                tmpposition = 0
+            if tmpposition > tmpcycle - 1:
+                tmpposition = tmpcycle - 1
+        return tmpposition
+
     def Shoot(self):
         return Projectile(
             self.position, self.depth - 1, 3, 1, (255, 255, 255), self.tag
@@ -119,6 +143,27 @@ class Level:
         self.positionAngles = self.getPosAnglesFromPolygon(self.polygonPoints)
         self.color = color
         self.concurrentEnemies = concurrentEnemies
+        self.makeOccupiedList()
+
+    def getEmptyPosition(self):
+        return self.occupiedList.tolist().index(0)
+
+    def makeOccupiedList(self):
+        ocList = np.zeros(len(self.positions), dtype = int)
+        for i in range(min(len(self.enemyList), self.concurrentEnemies)):
+            ocList[self.enemyList[i].position] += 1
+            print(self.enemyList[i].position)
+        print(f"ocList = {ocList}")
+        self.occupiedList = ocList
+
+    def checkIfOccupied(self, pos):
+        return self.occupiedList[pos]
+
+    def updateOccupiedList(self, prevpos, newpos):
+        self.occupiedList[newpos] += 1
+        print(f"{self.occupiedList} {prevpos}")
+        if self.occupiedList[prevpos] > 0:
+            self.occupiedList[prevpos] -= 1
 
     def importCyclicalFromSvg(self, svgfile):
         levelTree = ET.parse(svgfile)
@@ -216,6 +261,7 @@ class Enemy(Player):
         self.tag = EntityTag.ENEMY
         self.lives = lives
         self.movementBuffer = 0
+        self.shootBuffer = 0
         self.speed = 0.2
 
     def Shoot(self):
@@ -227,22 +273,35 @@ class Enemy(Player):
         distFromPlayer = player.position - self.position
         print(distFromPlayer)
         if distFromPlayer > 0:
-            self.movementBuffer += self.speed - rnd.randint(0, 10)/10.0 * randomness * self.speed
+            if level.checkIfOccupied(self.toCycle(self.position - 1)) == 0:
+                self.movementBuffer += self.speed - rnd.randint(0, 10)/10.0 * randomness * self.speed
 
         if distFromPlayer < 0:
-            self.movementBuffer -= self.speed + rnd.randint(0, 10)/10.0 * randomness * self.speed
+            if level.checkIfOccupied(self.toCycle(self.position + 1)) == 0:
+                self.movementBuffer -= self.speed + rnd.randint(0, 10)/10.0 * randomness * self.speed
 
         if self.movementBuffer < -1:
+            # level.updateOccupiedList(self.position, self.toCycle(self.position + 1))
             self.moveRight()
             self.movementBuffer = 0
+            level.makeOccupiedList()
 
         if self.movementBuffer > 1:
+            # level.updateOccupiedList(self.position, self.toCycle(self.position - 1))
             self.moveLeft()
             self.movementBuffer = 0
+            level.makeOccupiedList()
 
-        if player.position == self.position:
-            projectileList[self.position].append(self.Shoot())
-            
+        if level.checkIfOccupied(self.toCycle(self.position)) > 1:
+            # level.updateOccupiedList(self.position, self.toCycle(self.position + 1))
+            self.position = level.getEmptyPosition()
+            level.makeOccupiedList()
+
+        if player.position == self.position and self.shootBuffer < 0:
+            ProjectileList[self.position].append(self.Shoot())
+            self.shootBuffer = 1
+        else:
+            self.shootBuffer -= 0.1
 
         # self.depth -= 0.1
 
@@ -301,6 +360,38 @@ def milimetersToPixels(pointArray):
 def drawLinesForLevel(polygonPoints, scaledPolygonPoints, screen, color, width):
     for i in range(polygonPoints.shape[0]):
         pygame.draw.line(screen, color, polygonPoints[i], scaledPolygonPoints[i], width)
+
+
+def cameraPOVtransformation3D(cameraPos, polygonPoints, depth, d):
+    newPoints = []
+    output = []
+    ddepth = depth
+    if ddepth < 0:
+        ddepth = (np.exp(ddepth) - 1) / (np.exp(ddepth) + 1)
+    # center = np.sum(polygonPoints, axis=0)/polygonPoints.shape[0]
+    # print(f"center:{center}")
+    # for i in polygonPoints:
+    #     newPoints.append(np.array([i[0], i[1]]) + cameraPos)
+    # newPoints = np.array(newPoints)
+    # print(f"polygon:{polygonPoints}")
+    # print(f"newPoints:{newPoints.shape}")
+    transformationMatrix = [[d, 0, 0, 0], [0, d, 0, 0], [0, 0, 0, 0], [0, 0, 1, d]]
+    transformationMatrix = np.array(transformationMatrix)
+    newPoints3D = []
+    for i in polygonPoints:
+        # print(f"i={i}")
+        newPoints3D.append([i[0] + cameraPos[0], i[1] + cameraPos[1], i[2] + ddepth, 1])
+    # print(f"newPoints3D{newPoints3D}")
+    newPoints3D = np.array(newPoints3D)
+    newPoints = np.matmul(newPoints3D, transformationMatrix)
+    # print(f"newPoints{newPoints}")
+    for i in newPoints:
+        output.append(
+            np.array([i[0] / (d + ddepth), i[1] / (d + i[2] +ddepth)]) * resolutionScale() * 2
+            + resolution / 2.0
+        )
+    output = np.array(output)
+    return output
 
 # @jit
 def cameraPOVtransformation(cameraPos, polygonPoints, depth, d):
@@ -435,9 +526,30 @@ def DrawPauseMenu(screen):
     screen.blit(text2, textRect2)
 
 
-def DrawStars(screen):
-    option = False
-    return option
+
+
+
+# def DrawStars(screen):
+#     global starDepth
+#     starPoints = []
+#     posi = rnd.randint(0, 20)
+#     for i in range(starNumber):
+#         if i % 2 == 0:
+#             posi = rnd.randint(0, 20)
+#         starPoints.append([posi, posi, rnd.randint(0, 20)])
+#     starPoints = np.array(starPoints)
+#     timer = 0
+#     while timer < 200:
+#         points = cameraPOVtransformation3D(np.array([0,0]),starPoints, starDepth, 1)
+#         print(f"drawing stars with depth{starDepth}")
+#         starDepth += 1
+#         if starDepth > starDepthEnd:
+#             starDepth = 0
+#         i = 0
+#         while i < len(points) - 1:
+#             pygame.draw.line(screen, (255, 255, 255), points[i], points[i+1])
+#             i += 1
+#         timer += 1
 
 
 def DrawWin(screen):
@@ -451,9 +563,11 @@ def DrawWin(screen):
 
     screen.blit(win_text, textRect)
 
+    time.sleep(3)
 
 
-def DrawLoss(screen, transitionDelay):
+
+def DrawLoss(screen):
     font = pygame.font.Font("freesansbold.ttf", 32)
 
     game_over_text = font.render("Game Over", True, (255, 0, 0))
@@ -463,6 +577,8 @@ def DrawLoss(screen, transitionDelay):
     textRect.center = resolution / 2 + np.array([-30, -320])
 
     screen.blit(game_over_text, textRect)
+
+    time.sleep(3)
 
 
 heart = importPolygonFromSvg("Heart.svg")
@@ -492,147 +608,149 @@ LevelList = []
 
 #Level 1
 LevelList.append(Level(1, [], "Level1.svg", (0, 0, 255), 3))    ####### eixame 5 anti gia 3
-LevelList[0].enemyList.append(
-    Enemy(
-        LevelList[0].getCyclicalForPlayer(),
-        "Enemy_Low.svg",
-        playDepth,
-        0,
-        (255, 0, 0),
-        1,
+for enm in range(3):
+    LevelList[0].enemyList.append(
+        Enemy(
+            LevelList[0].getCyclicalForPlayer(),
+            "Enemy_Low.svg",
+            playDepth,
+            0,
+            (255, 0, 0),
+            1,
+        )
     )
-)
 
 #Level 2
 LevelList.append(Level(2, [],"Level2.svg", (0, 0, 255), 4))
-
-LevelList[1].enemyList.append(
-    Enemy(
-        LevelList[1].getCyclicalForPlayer(),
-        "Enemy_Low.svg",
-        playDepth,
-        0,
-        (255, 0, 0),
-        1,
+for enm in range(3):
+    LevelList[1].enemyList.append(
+        Enemy(
+            LevelList[1].getCyclicalForPlayer(),
+            "Enemy_Low.svg",
+            playDepth,
+            0,
+            (255, 0, 0),
+            1,
+        )
     )
-)
-
-LevelList[1].enemyList.append(
-    Enemy(
-        LevelList[1].getCyclicalForPlayer(),
-        "Enemy_Medium.svg",
-        playDepth,
-        0,
-        (255, 0, 0),
-        2,
+for enm in range(1):
+    LevelList[1].enemyList.append(
+        Enemy(
+            LevelList[1].getCyclicalForPlayer(),
+            "Enemy_Medium.svg",
+            playDepth,
+            0,
+            (255, 0, 0),
+            2,
+        )
     )
-)
 
 #Level 3
 LevelList.append(Level(3, [],"Level3.svg", (0, 0, 255), 5))
-
-LevelList[2].enemyList.append(
-    Enemy(
-        LevelList[2].getCyclicalForPlayer(),
-        "Enemy_Medium.svg",
-        playDepth,
-        0,
-        (255, 0, 0),
-        3,
+for enm in range(5):
+    LevelList[2].enemyList.append(
+        Enemy(
+            LevelList[2].getCyclicalForPlayer(),
+            "Enemy_Medium.svg",
+            playDepth,
+            0,
+            (255, 0, 0),
+            3,
+        )
     )
-)
 
 #Level 4
 LevelList.append(Level(4, [],"Level4.svg", (0, 0, 255), 6))
-
-LevelList[3].enemyList.append(
-    Enemy(
-        LevelList[3].getCyclicalForPlayer(),
-        "Enemy_Low.svg",
-        playDepth,
-        0,
-        (255, 0, 0),
-        2,
+for enm in range(3):
+    LevelList[3].enemyList.append(
+        Enemy(
+            LevelList[3].getCyclicalForPlayer(),
+            "Enemy_Low.svg",
+            playDepth,
+            0,
+            (255, 0, 0),
+            2,
+        )
     )
-)
-
-LevelList[3].enemyList.append(
-    Enemy(
-        LevelList[3].getCyclicalForPlayer(),
-        "Enemy_Medium.svg",
-        playDepth,
-        0,
-        (255, 0, 0),
-        3,
+for enm in range(3):
+    LevelList[3].enemyList.append(
+        Enemy(
+            LevelList[3].getCyclicalForPlayer(),
+            "Enemy_Medium.svg",
+            playDepth,
+            0,
+            (255, 0, 0),
+            3,
+        )
     )
-)
 
 #Level 5
 LevelList.append(Level(5, [],"Level5.svg", (0, 0, 255), 7))
-
-LevelList[4].enemyList.append(
-    Enemy(
-        LevelList[4].getCyclicalForPlayer(),
-        "Enemy_Medium.svg",
-        playDepth,
-        0,
-        (255, 0, 0),
-        3,
+for enm in range(6):
+    LevelList[4].enemyList.append(
+        Enemy(
+            LevelList[4].getCyclicalForPlayer(),
+            "Enemy_Medium.svg",
+            playDepth,
+            0,
+            (255, 0, 0),
+            3,
+        )
     )
-)
-
-LevelList[4].enemyList.append(
-    Enemy(
-        LevelList[4].getCyclicalForPlayer(),
-        "Enemy_High.svg",
-        playDepth,
-        0,
-        (255, 0, 0),
-        5,
+for enm in range(1):
+    LevelList[4].enemyList.append(
+        Enemy(
+            LevelList[4].getCyclicalForPlayer(),
+            "Enemy_High.svg",
+            playDepth,
+            0,
+            (255, 0, 0),
+            5,
+        )
     )
-)
 
 #Level 6
 LevelList.append(Level(6, [],"Level6.svg", (0, 0, 255), 8))
 
-
-LevelList[5].enemyList.append(
-    Enemy(
-        LevelList[5].getCyclicalForPlayer(),
-        "Enemy_Low.svg",
-        playDepth,
-        0,
-        (255, 0, 0),
-        2,
+for enm in range(3):
+    LevelList[5].enemyList.append(
+        Enemy(
+            LevelList[5].getCyclicalForPlayer(),
+            "Enemy_Low.svg",
+            playDepth,
+            0,
+            (255, 0, 0),
+            2,
+        )
     )
-)
 
-
-LevelList[5].enemyList.append(
-    Enemy(
-        LevelList[5].getCyclicalForPlayer(),
-        "Enemy_Medium.svg",
-        playDepth,
-        0,
-        (255, 0, 0),
-        3,
+for enm in range(3):
+    LevelList[5].enemyList.append(
+        Enemy(
+            LevelList[5].getCyclicalForPlayer(),
+            "Enemy_Medium.svg",
+            playDepth,
+            0,
+            (255, 0, 0),
+            3,
+        )
     )
-)
-
-LevelList[5].enemyList.append(
-    Enemy(
-        LevelList[5].getCyclicalForPlayer(),
-        "Enemy_High.svg",
-        playDepth,
-        0,
-        (255, 0, 0),
-        5,
+for enm in range(2):
+    LevelList[5].enemyList.append(
+        Enemy(
+            LevelList[5].getCyclicalForPlayer(),
+            "Enemy_High.svg",
+            playDepth,
+            0,
+            (255, 0, 0),
+            5,
+        )
     )
-)
 
+for lvl in LevelList:
+    lvl.makeOccupiedList()
 
-
-BaseLevel = LevelList[0]
+BaseLevel = copy.deepcopy(LevelList[0])
 BasePlayer = Player(BaseLevel.getCyclicalForPlayer(), "Player.svg", (0, 255, 0), 3)
 
 for i in range(len(BaseLevel.positions)):
@@ -667,6 +785,7 @@ pause_session = pygame.mixer.Sound("pause_session.wav")
 
 
 while True:
+    print(f"{playMode} {levelCount}")
     prevPauseBuffer = pauseBuffer
     for event in pygame.event.get():  # Checks for Events From Keyboard Or Mouse
         if event.type == pygame.QUIT:
@@ -717,6 +836,7 @@ while True:
         if keys[pygame.K_RETURN]:
             playMode = PlayMode.PLAY
             zoom = startZoom
+            BaseLevel = copy.deepcopy(LevelList[levelCount])
         if pauseBuffer == 1:
             pygame.quit()
             exit()
@@ -728,7 +848,7 @@ while True:
         if rnd.randint(0, 1) > 0 and shootVector <= 0:
 
             ProjectileList[BasePlayer.position].append(BasePlayer.Shoot())
-            print(f"baseplayerpos{BasePlayer.position} and object {ProjectileList[BasePlayer.position]}")
+            # print(f"baseplayerpos{BasePlayer.position} and object {ProjectileList[BasePlayer.position]}")
             # print("Shoot")
             shootVector = 1
             shoot_effect.play()
@@ -742,8 +862,9 @@ while True:
     if shootVector > 0:
         shootVector -= shootCooldown
 
+    tmpPmode = playMode
     if playMode == PlayMode.CHANGELEVEL:
-        DrawStars(screen)
+        # DrawStars(screen)
         if levelCount > len(LevelList) - 2:
             if transitionDelay > t:
                 t += 1
@@ -752,11 +873,13 @@ while True:
             DrawWin(screen)
         else:
             levelCount += 1
-            BaseLevel = LevelList[levelCount]
+            BasePlayer.position = 0
+            BaseLevel = copy.deepcopy(LevelList[levelCount])
+            BasePlayer.cycle = BaseLevel.getCyclicalForPlayer()
             ProjectileList = []
             for i in range(len(BaseLevel.positions)):
                 ProjectileList.append([])
-            playMode = PlayMode.PLAY
+            playMode = tmpPmode
             zoom = startZoom
 
     if len(BaseLevel.enemyList) < 1 and zoom >= endZoom:
@@ -769,31 +892,48 @@ while True:
         en = 0
         while en < min(len(BaseLevel.enemyList), BaseLevel.concurrentEnemies):
             BaseLevel.enemyList[en].Behaviour(BasePlayer, BaseLevel, ProjectileList, 1)
+            proj = 0
+            allproj = len(ProjectileList[BaseLevel.enemyList[en].position])
+            while proj < allproj:
+                if BaseLevel.enemyList[en].depth > ProjectileList[BaseLevel.enemyList[en].position][proj].depth and ProjectileList[BaseLevel.enemyList[en].position][proj].tag == BasePlayer.tag:
+                    BaseLevel.enemyList[en].lives -= 1
+                    ProjectileList[BaseLevel.enemyList[en].position].pop(proj)
+                    proj -= 1
+                    allproj -= 1
+                proj += 1
             if BaseLevel.enemyList[en].lives < 1:
                 BaseLevel.enemyList.pop(en)
+                BaseLevel.makeOccupiedList()
                 en -= 1
             en += 1
 
-
-
-    i = 0
-    while i < len(ProjectileList):
-        j = 0
-        # print(ProjectileList[i])
-        while j < len(ProjectileList[i]):
-            ProjectileList[i][j].moveProjectile()
-            if ProjectileList[i][j].depth > playDepth:
-                popped = ProjectileList[i].pop(j)
-                print(f"popped{popped}")
-                j -= 1
-            j += 1
-        i += 1
+    if playMode != PlayMode.PAUSE and playMode != PlayMode.CHANGELEVEL:
+        i = 0
+        while i < len(ProjectileList[BasePlayer.position]):
+            if ProjectileList[BasePlayer.position][i].depth < -1 and ProjectileList[BasePlayer.position][i].tag != BasePlayer.tag:
+                popped = ProjectileList[BasePlayer.position].pop(i)
+                i -= 1
+                BasePlayer.lives -= 1
+            i += 1
+        i = 0
+        while i < len(ProjectileList):
+            j = 0
+            # print(ProjectileList[i])
+            while j < len(ProjectileList[i]):
+                ProjectileList[i][j].moveProjectile()
+                if ProjectileList[i][j].depth > playDepth or ProjectileList[i][j].depth < -1:
+                    popped = ProjectileList[i].pop(j)
+                    # print(f"popped{popped}")
+                    j -= 1
+                j += 1
+            i += 1
 
     # print(ProjectileList)
 
     if BasePlayer.lives < 1:
-        DrawLoss(screen, transitionDelay)
+        DrawLoss(screen)
         playMode = PlayMode.DEMO
+        BasePlayer.lives = 3
 
     screen.fill("black")
     cameraPos = accelerateCam(BasePlayer, BaseLevel, cameraPos, cameraSpeed)
