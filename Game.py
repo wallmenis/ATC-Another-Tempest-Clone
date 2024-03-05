@@ -11,33 +11,9 @@ import time
 # from numba import jit
 
 
-class PlayMode(Enum):
-    PLAY = 0
-    DEMO = 1
-    CHANGELEVEL = 2
-    PAUSE = 3
-
-
-class EntityTag(Enum):
-    PLAYER = 0
-    ENEMY = 1
-
-# Default parameters
-global resolution, dpi, playMode, sensitivity, shootCooldown, playDepth, deltaTime
-dpi = 96
-resolution = np.array((1280, 720))
-playMode = PlayMode.DEMO
-sensitivity = 0.2
-shootCooldown = 0.2
-playDepth = 10
-cameraSpeed = 0.2
-zoomSpeed = 0.1
-endZoom = -20
-startZoom = 5
-transitionDelay = 12
-starDepth = 0
-starDepthEnd = 20
-starNumber = 20
+# @jit
+def milimetersToPixels(pointArray):
+    return pointArray * dpi * 0.03937008
 
 
 def importPolygonFromSvg(svgfile):
@@ -61,6 +37,49 @@ def importPolygonFromSvg(svgfile):
     points = milimetersToPixels(points)
     levelGeom = points
     return levelGeom
+
+
+class PlayMode(Enum):
+    PLAY = 0
+    DEMO = 1
+    CHANGELEVEL = 2
+    PAUSE = 3
+
+
+class EntityTag(Enum):
+    PLAYER = 0
+    ENEMY = 1
+
+
+class Quadrant(Enum):
+    FIRST = 0
+    SECOND = 1
+    THIRD = 2
+    FOURTH = 3
+
+# Default parameters
+global resolution, dpi, playMode, sensitivity, shootCooldown, playDepth, deltaTime
+dpi = 96
+resolution = np.array((1280, 720))
+playMode = PlayMode.DEMO
+sensitivity = 0.2
+shootCooldown = 0.2
+playDepth = 10
+cameraSpeed = 0.2
+zoomSpeed = 0.1
+endZoom = -20
+startZoom = 5
+invinsible = False
+
+pygame.init()
+#Sounds Initialization
+shoot_effect = pygame.mixer.Sound("shoot_effect.mp3")
+death_session = pygame.mixer.Sound("death_session.wav")
+pause_session = pygame.mixer.Sound("pause_session.wav")
+pew_session = pygame.mixer.Sound("pew_session.wav")
+
+heart = importPolygonFromSvg("Heart.svg")
+logo = importPolygonFromSvg("Logo.svg") # the logo wont work since the svg parser only reads the first path and not more
 
 
 class Player:
@@ -152,8 +171,8 @@ class Level:
         ocList = np.zeros(len(self.positions), dtype = int)
         for i in range(min(len(self.enemyList), self.concurrentEnemies)):
             ocList[self.enemyList[i].position] += 1
-            print(self.enemyList[i].position)
-        print(f"ocList = {ocList}")
+            # print(self.enemyList[i].position)
+        # print(f"ocList = {ocList}")
         self.occupiedList = ocList
 
     def checkIfOccupied(self, pos):
@@ -161,7 +180,7 @@ class Level:
 
     def updateOccupiedList(self, prevpos, newpos):
         self.occupiedList[newpos] += 1
-        print(f"{self.occupiedList} {prevpos}")
+        # print(f"{self.occupiedList} {prevpos}")
         if self.occupiedList[prevpos] > 0:
             self.occupiedList[prevpos] -= 1
 
@@ -177,11 +196,11 @@ class Level:
 
     def getPositionsFromPolygon(self, polygonPoints):
         positions = []
-        print("test")
+        # print("test")
         for i in range(len(polygonPoints) - 1):
             positions.append((polygonPoints[i] + polygonPoints[i + 1]) / 2.0)
         if self.cyclical is True:
-            print("is cyclical")
+            # print("is cyclical")
             positions.append(
                 (polygonPoints[0] + polygonPoints[len(polygonPoints) - 1]) / 2.0
             )
@@ -220,9 +239,9 @@ class Level:
                 tmpangle = np.pi / 2.0
             else:
                 tmpangle = np.arctan(tmpangle[1] / tmpangle[0])
-            if slope[0] < 0:
-                tmpangle += np.pi
-            # tmpangle = rotateIfLookingAway(tmp, center, tmpangle)
+            # if slope[0] < 0:
+            #     tmpangle += np.pi
+            tmpangle = rotateIfLookingAway(slope, tmpangle)
             angles.append(tmpangle)
         if self.cyclical is True:
             tmpangle = polygonPoints[0] - polygonPoints[len(polygonPoints) - 1]
@@ -234,9 +253,9 @@ class Level:
                 tmpangle = np.pi / 2.0
             else:
                 tmpangle = np.arctan(tmpangle[1] / tmpangle[0])
-            if slope[0] < 0:
-                tmpangle += np.pi
-            # tmpangle = rotateIfLookingAway(tmp, center, tmpangle)
+            # if slope[0] < 0:
+            #     tmpangle += np.pi
+            tmpangle = rotateIfLookingAway(slope, tmpangle)
             angles.append(tmpangle)
         angles = np.array(angles)
         print(f"Angles {angles*360/np.pi}")
@@ -271,13 +290,19 @@ class Enemy(Player):
 
     def Behaviour(self, player, level, projectileList, randomness):
         distFromPlayer = player.position - self.position
-        print(distFromPlayer)
-        if distFromPlayer > 0:
-            if level.checkIfOccupied(self.toCycle(self.position - 1)) == 0:
-                self.movementBuffer += self.speed - rnd.randint(0, 10)/10.0 * randomness * self.speed
 
         if distFromPlayer < 0:
+            distFromPlayer = - abs(distFromPlayer) % len(level.positions)
+        else:
+            distFromPlayer = abs(distFromPlayer) % len(level.positions)
+
+        # print(distFromPlayer)
+        if distFromPlayer > 0:
             if level.checkIfOccupied(self.toCycle(self.position + 1)) == 0:
+                self.movementBuffer += self.speed + rnd.randint(0, 10)/10.0 * randomness * self.speed
+
+        if distFromPlayer < 0:
+            if level.checkIfOccupied(self.toCycle(self.position - 1)) == 0:
                 self.movementBuffer -= self.speed + rnd.randint(0, 10)/10.0 * randomness * self.speed
 
         if self.movementBuffer < -1:
@@ -299,6 +324,7 @@ class Enemy(Player):
 
         if player.position == self.position and self.shootBuffer < 0:
             ProjectileList[self.position].append(self.Shoot())
+            pew_session.play()
             self.shootBuffer = 1
         else:
             self.shootBuffer -= 0.1
@@ -328,20 +354,51 @@ class Projectile:
         self.depth += self.speed
 
 
-def rotateIfLookingAway(point1, center, angle):
+def getQuadFromSlope(slope):
+    if slope[0] > 0 and slope[1] > 0:
+        return Quadrant.FIRST
+    elif slope[0] < 0 and slope[1] > 0:
+        return Quadrant.SECOND
+    elif slope[0] < 0 and slope[1] < 0:
+        return Quadrant.THIRD
+    elif slope[0] > 0 and slope[1] < 0:
+        return Quadrant.FOURTH
+    return Quadrant.FIRST
+
+
+def getQuadFromAngle(angle):
+    if angle >= 0 and angle <= np.pi/2:
+        return Quadrant.FIRST
+    elif angle > np.pi/2 and angle <= np.pi:
+        return Quadrant.SECOND
+    elif angle < 0 and angle >= - np.pi/2:
+        return Quadrant.THIRD
+    elif angle < - np.pi/2 and slope[1] >= - np.pi:
+        return Quadrant.FOURTH
+    return Quadrant.FIRST
+
+
+def moveToQuad(angle, quad):                # unimplemented...
+    tmpang = angle
+    angQuad = getQuadFromAngle(angle)
+    if angQuad!=quad:
+        print("DIFFERENT")
+    return tmpang
+
+
+def rotateIfLookingAway(slope, angle):      # we attempted at solving a problem where the player won't face the right way we failed...
     newAngle = angle
-    if point1[0] < center[0] and point1[1] < center[1]:
-        if angle < 0 or angle > np.pi / 4:
-            newAngle += np.pi
-    if point1[0] > center[0] and point1[1] < center[1]:
-        if angle < 0 or angle < np.pi / 4:
-            newAngle += np.pi
-    if point1[0] > center[0] and point1[1] > center[1]:
-        if angle > 0 or angle < -np.pi / 4:
-            newAngle += np.pi
-    if point1[0] < center[0] and point1[1] > center[1]:
-        if angle > 0 or angle > -np.pi / 4:
-            newAngle += np.pi
+    print(f"angle {angle/np.pi*360}")
+
+    if getQuadFromAngle(angle)!=getQuadFromSlope(slope):
+        print("DIFFERENT QUADS")
+        # newAngle += np.pi
+
+    if slope[0] < 0:
+        newAngle += np.pi
+
+    print(f"newAngle {newAngle/np.pi*360}")
+    print()
     return newAngle
 
 
@@ -352,9 +409,6 @@ def scaleAgainstCenter(scale, polygonPoints, center):
     scaled += center
     return scaled
 
-# @jit
-def milimetersToPixels(pointArray):
-    return pointArray * dpi * 0.03937008
 
 # @jit
 def drawLinesForLevel(polygonPoints, scaledPolygonPoints, screen, color, width):
@@ -368,13 +422,6 @@ def cameraPOVtransformation3D(cameraPos, polygonPoints, depth, d):
     ddepth = depth
     if ddepth < 0:
         ddepth = (np.exp(ddepth) - 1) / (np.exp(ddepth) + 1)
-    # center = np.sum(polygonPoints, axis=0)/polygonPoints.shape[0]
-    # print(f"center:{center}")
-    # for i in polygonPoints:
-    #     newPoints.append(np.array([i[0], i[1]]) + cameraPos)
-    # newPoints = np.array(newPoints)
-    # print(f"polygon:{polygonPoints}")
-    # print(f"newPoints:{newPoints.shape}")
     transformationMatrix = [[d, 0, 0, 0], [0, d, 0, 0], [0, 0, 0, 0], [0, 0, 1, d]]
     transformationMatrix = np.array(transformationMatrix)
     newPoints3D = []
@@ -387,11 +434,12 @@ def cameraPOVtransformation3D(cameraPos, polygonPoints, depth, d):
     # print(f"newPoints{newPoints}")
     for i in newPoints:
         output.append(
-            np.array([i[0] / (d + ddepth), i[1] / (d + i[2] +ddepth)]) * resolutionScale() * 2
+            np.array([i[0] / (d + ddepth), i[1] / (d + i[2] + ddepth)]) * resolutionScale() * 2
             + resolution / 2.0
         )
     output = np.array(output)
     return output
+
 
 # @jit
 def cameraPOVtransformation(cameraPos, polygonPoints, depth, d):
@@ -425,11 +473,13 @@ def cameraPOVtransformation(cameraPos, polygonPoints, depth, d):
     output = np.array(output)
     return output
 
+
 # @jit
 def resolutionScale():
     if resolution[0] > resolution[1]:
         return resolution[1] / resolution[0]
     return resolution[0] / resolution[1]
+
 
 # @jit
 def accelerateCam(player, level, cameraPos, velocity):
@@ -481,7 +531,6 @@ def MoveToResolution(points, offset):
     return np.array(output)
 
 
-logo = importPolygonFromSvg("Logo.svg")
 
 
 def DrawMainMenu(screen):
@@ -526,30 +575,24 @@ def DrawPauseMenu(screen):
     screen.blit(text2, textRect2)
 
 
-
-
-
-# def DrawStars(screen):
-#     global starDepth
-#     starPoints = []
-#     posi = rnd.randint(0, 20)
-#     for i in range(starNumber):
-#         if i % 2 == 0:
-#             posi = rnd.randint(0, 20)
-#         starPoints.append([posi, posi, rnd.randint(0, 20)])
-#     starPoints = np.array(starPoints)
-#     timer = 0
-#     while timer < 200:
-#         points = cameraPOVtransformation3D(np.array([0,0]),starPoints, starDepth, 1)
-#         print(f"drawing stars with depth{starDepth}")
-#         starDepth += 1
-#         if starDepth > starDepthEnd:
-#             starDepth = 0
-#         i = 0
-#         while i < len(points) - 1:
-#             pygame.draw.line(screen, (255, 255, 255), points[i], points[i+1])
-#             i += 1
-#         timer += 1
+def DrawStars(screen):
+    starDepth = 0
+    starDepthEnd = -20
+    starNumber = 1
+    starPoints = []
+    for i in range(starNumber):
+        posi = rnd.randint(-200, 200)
+        starPoints.append([rnd.randint(-200, 200), rnd.randint(-200, 200), rnd.randint(0, 20)])
+    starPoints = np.array(starPoints)
+    while starDepth > starDepthEnd:
+        points = cameraPOVtransformation3D(np.array([0,0]), starPoints, starDepth, 1)
+        print(f"drawing stars with depth {starDepth}")
+        starDepth -= 0.01
+        i = 0
+        while i < len(points) - 1:
+            pygame.draw.line(screen, (255, 255 , 255), points[i], points[i+1])
+            i += 1
+        pygame.display.flip()
 
 
 def DrawWin(screen):
@@ -563,6 +606,7 @@ def DrawWin(screen):
 
     screen.blit(win_text, textRect)
 
+    pygame.display.flip()
     time.sleep(3)
 
 
@@ -577,17 +621,15 @@ def DrawLoss(screen):
     textRect.center = resolution / 2 + np.array([-30, -320])
 
     screen.blit(game_over_text, textRect)
-
+    death_session.play()
+    pygame.display.flip()
     time.sleep(3)
-
-
-heart = importPolygonFromSvg("Heart.svg")
 
 
 def DrawHUD(screen, player, levelcount):
 
     font = pygame.font.Font("freesansbold.ttf", 32)
-    text = font.render("Score:", True, (0, 255, 0))
+    text = font.render(f"Level: {levelCount+1}", True, (0, 255, 0))
     textRect = text.get_rect()
     textRect.center = resolution / 2 + np.array([-570, -320])
     screen.blit(text, textRect)
@@ -755,12 +797,12 @@ BasePlayer = Player(BaseLevel.getCyclicalForPlayer(), "Player.svg", (0, 255, 0),
 
 for i in range(len(BaseLevel.positions)):
     ProjectileList.append([])
-print(f"pjlist{ProjectileList}")
+# print(f"pjlist{ProjectileList}")
 
-print(BaseLevel)
-print(BasePlayer)
+# print(BaseLevel)
+# print(BasePlayer)
 
-pygame.init()
+
 screen = pygame.display.set_mode(resolution, pygame.RESIZABLE)  # Set Resolution
 pygame.display.set_caption("Another Tempest Clone")  # Sets Name For The Game
 clock = pygame.time.Clock()  # Object To Control The Framerate
@@ -778,14 +820,11 @@ pauseBufferDiff = 0
 prevPauseBuffer = 0
 
 
-#Sounds Initialization
-shoot_effect = pygame.mixer.Sound("shoot_effect.mp3")
-death_session = pygame.mixer.Sound("death_session.wav")
-pause_session = pygame.mixer.Sound("pause_session.wav")
 
+tmpPmode = playMode
 
 while True:
-    print(f"{playMode} {levelCount}")
+    # print(f"{playMode} {levelCount}")
     prevPauseBuffer = pauseBuffer
     for event in pygame.event.get():  # Checks for Events From Keyboard Or Mouse
         if event.type == pygame.QUIT:
@@ -836,7 +875,13 @@ while True:
         if keys[pygame.K_RETURN]:
             playMode = PlayMode.PLAY
             zoom = startZoom
+            levelCount = 0
             BaseLevel = copy.deepcopy(LevelList[levelCount])
+            BasePlayer = Player(BaseLevel.getCyclicalForPlayer(), "Player.svg", (0, 255, 0), 3)
+            ProjectileList = []
+            for i in range(len(BaseLevel.positions)):
+                ProjectileList.append([])
+            # print(f"pjlist{ProjectileList}")
         if pauseBuffer == 1:
             pygame.quit()
             exit()
@@ -862,14 +907,16 @@ while True:
     if shootVector > 0:
         shootVector -= shootCooldown
 
-    tmpPmode = playMode
     if playMode == PlayMode.CHANGELEVEL:
         # DrawStars(screen)
         if levelCount > len(LevelList) - 2:
-            if transitionDelay > t:
-                t += 1
-            else:
-                playMode = PlayMode.DEMO
+            playMode = PlayMode.DEMO
+            BaseLevel = copy.deepcopy(LevelList[0])
+            levelCount = -1
+            for i in range(len(BaseLevel.positions)):
+                ProjectileList.append([])
+            # print(f"pjlist{ProjectileList}")
+            BasePlayer = Player(BaseLevel.getCyclicalForPlayer(), "Player.svg", (0, 255, 0), 3)
             DrawWin(screen)
         else:
             levelCount += 1
@@ -882,38 +929,14 @@ while True:
             playMode = tmpPmode
             zoom = startZoom
 
-    if len(BaseLevel.enemyList) < 1 and zoom >= endZoom:
-        zoom -= zoomSpeed
-        t = 0
-    if zoom < endZoom:
-        playMode = PlayMode.CHANGELEVEL
-
-    if playMode != PlayMode.PAUSE and zoom <= 0:
-        en = 0
-        while en < min(len(BaseLevel.enemyList), BaseLevel.concurrentEnemies):
-            BaseLevel.enemyList[en].Behaviour(BasePlayer, BaseLevel, ProjectileList, 1)
-            proj = 0
-            allproj = len(ProjectileList[BaseLevel.enemyList[en].position])
-            while proj < allproj:
-                if BaseLevel.enemyList[en].depth > ProjectileList[BaseLevel.enemyList[en].position][proj].depth and ProjectileList[BaseLevel.enemyList[en].position][proj].tag == BasePlayer.tag:
-                    BaseLevel.enemyList[en].lives -= 1
-                    ProjectileList[BaseLevel.enemyList[en].position].pop(proj)
-                    proj -= 1
-                    allproj -= 1
-                proj += 1
-            if BaseLevel.enemyList[en].lives < 1:
-                BaseLevel.enemyList.pop(en)
-                BaseLevel.makeOccupiedList()
-                en -= 1
-            en += 1
-
     if playMode != PlayMode.PAUSE and playMode != PlayMode.CHANGELEVEL:
         i = 0
         while i < len(ProjectileList[BasePlayer.position]):
-            if ProjectileList[BasePlayer.position][i].depth < -1 and ProjectileList[BasePlayer.position][i].tag != BasePlayer.tag:
+            if ProjectileList[BasePlayer.position][i].depth < 0 and ProjectileList[BasePlayer.position][i].tag != BasePlayer.tag and not invinsible:
                 popped = ProjectileList[BasePlayer.position].pop(i)
                 i -= 1
                 BasePlayer.lives -= 1
+                # print(f"baseplayer lives {BasePlayer.lives}")
             i += 1
         i = 0
         while i < len(ProjectileList):
@@ -927,13 +950,45 @@ while True:
                     j -= 1
                 j += 1
             i += 1
+        if BasePlayer.lives < 1:
+            if playMode == PlayMode.PLAY:
+                DrawLoss(screen)
+            playMode = PlayMode.DEMO
+            BaseLevel = copy.deepcopy(LevelList[0])
+            levelCount = 0
+            for i in range(len(BaseLevel.positions)):
+                ProjectileList.append([])
+            # print(f"pjlist{ProjectileList}")
+            BasePlayer = Player(BaseLevel.getCyclicalForPlayer(), "Player.svg", (0, 255, 0), 3)
+            zoom = startZoom
+        if len(BaseLevel.enemyList) < 1 and zoom >= endZoom:
+            zoom -= zoomSpeed
+            t = 0
+        if zoom < endZoom:
+            tmpPmode = playMode
+            playMode = PlayMode.CHANGELEVEL
 
+        if zoom <= 0:
+            en = 0
+            while en < min(len(BaseLevel.enemyList), BaseLevel.concurrentEnemies):
+                BaseLevel.enemyList[en].Behaviour(BasePlayer, BaseLevel, ProjectileList, 1)
+                proj = 0
+                allproj = len(ProjectileList[BaseLevel.enemyList[en].position])
+                while proj < allproj:
+                    if BaseLevel.enemyList[en].depth > ProjectileList[BaseLevel.enemyList[en].position][proj].depth and ProjectileList[BaseLevel.enemyList[en].position][proj].tag == BasePlayer.tag:
+                        BaseLevel.enemyList[en].lives -= 1
+                        ProjectileList[BaseLevel.enemyList[en].position].pop(proj)
+                        proj -= 1
+                        allproj -= 1
+                    proj += 1
+                if BaseLevel.enemyList[en].lives < 1:
+                    BaseLevel.enemyList.pop(en)
+                    BaseLevel.makeOccupiedList()
+                    en -= 1
+                en += 1
     # print(ProjectileList)
 
-    if BasePlayer.lives < 1:
-        DrawLoss(screen)
-        playMode = PlayMode.DEMO
-        BasePlayer.lives = 3
+
 
     screen.fill("black")
     cameraPos = accelerateCam(BasePlayer, BaseLevel, cameraPos, cameraSpeed)
@@ -944,5 +999,6 @@ while True:
     if playMode == PlayMode.DEMO:
         DrawMainMenu(screen)
     pygame.display.flip()
+    # pygame.display.update()
     resolution = np.array(pygame.display.get_window_size())
     deltaTime = clock.tick(60)  # 60 Frames/Second
